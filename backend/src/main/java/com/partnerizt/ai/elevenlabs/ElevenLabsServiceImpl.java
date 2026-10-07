@@ -11,8 +11,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 
 @Service
@@ -20,28 +18,28 @@ public class ElevenLabsServiceImpl implements ElevenLabsService {
 
     private static final Logger log = LoggerFactory.getLogger(ElevenLabsServiceImpl.class);
 
-    @Value("${ai.elevenlabs.api-key:}")
+    @Value("${ai.elevenlabs.api-key:${ELEVENLABS_API_KEY:}}")
     private String apiKey;
 
-    @Value("${ai.elevenlabs.model-id:eleven_multilingual_v2}")
+    @Value("${ai.elevenlabs.model-id:${ELEVENLABS_MODEL_ID:eleven_multilingual_v2}}")
     private String modelId;
 
-    @Value("${ai.elevenlabs.default-voice-id:21m00Tcm4TlvDq8ikWAM}")
+    @Value("${ai.elevenlabs.default-voice-id:${ELEVENLABS_DEFAULT_VOICE_ID:21m00Tcm4TlvDq8ikWAM}}")
     private String defaultVoiceId;
 
-    @Value("${ai.elevenlabs.voice-birdo:IKne3meq5aSn9XLyUdCD}")
+    @Value("${ai.elevenlabs.voice-birdo:${ELEVENLABS_VOICE_BIRDO:IKne3meq5aSn9XLyUdCD}}")
     private String voiceBirdo;
 
-    @Value("${ai.elevenlabs.voice-flora:EXAVITQu4vr4xnSDxMaL}")
+    @Value("${ai.elevenlabs.voice-flora:${ELEVENLABS_VOICE_FLORA:EXAVITQu4vr4xnSDxMaL}}")
     private String voiceFlora;
 
-    @Value("${ai.elevenlabs.voice-atlas:VR6AewLTigWG4xSOukaG}")
+    @Value("${ai.elevenlabs.voice-atlas:${ELEVENLABS_VOICE_ATLAS:VR6AewLTigWG4xSOukaG}}")
     private String voiceAtlas;
 
-    @Value("${ai.elevenlabs.voice-munch:pNInz6obpgDQGcFmaJgB}")
+    @Value("${ai.elevenlabs.voice-munch:${ELEVENLABS_VOICE_MUNCH:pNInz6obpgDQGcFmaJgB}}")
     private String voiceMunch;
 
-    @Value("${ai.elevenlabs.voice-nova:AZnzlk1XvdvUeBnXmlld}")
+    @Value("${ai.elevenlabs.voice-nova:${ELEVENLABS_VOICE_NOVA:AZnzlk1XvdvUeBnXmlld}}")
     private String voiceNova;
 
     private final RestTemplate restTemplate;
@@ -59,52 +57,11 @@ public class ElevenLabsServiceImpl implements ElevenLabsService {
 
     @PostConstruct
     public void init() {
-        if (this.apiKey == null || this.apiKey.isBlank()) {
-            String keyFromEnv = findEnvVariable("ELEVENLABS_API_KEY");
-            if (keyFromEnv != null && !keyFromEnv.isBlank()) {
-                this.apiKey = keyFromEnv;
-                log.info("[ELEVENLABS_CONFIG] Loaded ELEVENLABS_API_KEY from environment/.env file");
-            }
+        boolean configured = (this.apiKey != null && !this.apiKey.isBlank());
+        log.info("[ELEVENLABS_CONFIG] ElevenLabs TTS initialized | model={} | API key configured={}", modelId, configured);
+        if (!configured) {
+            log.warn("[ELEVENLABS_CONFIG] ElevenLabs API key not detected. Speech generation will return unavailable status until ELEVENLABS_API_KEY is configured.");
         }
-        if (this.apiKey != null && !this.apiKey.isBlank()) {
-            log.info("[ELEVENLABS_CONFIG] ElevenLabs TTS initialized with model={}", modelId);
-        } else {
-            log.info("[ELEVENLABS_CONFIG] ElevenLabs API key not detected. Speech generation will return unavailable status until key is configured.");
-        }
-    }
-
-    private String findEnvVariable(String key) {
-        String val = System.getenv(key);
-        if (val != null && !val.isBlank()) return val;
-        val = System.getProperty(key);
-        if (val != null && !val.isBlank()) return val;
-
-        List<Path> candidatePaths = List.of(
-                Path.of(".env"),
-                Path.of("..", ".env"),
-                Path.of(System.getProperty("user.dir", "."), ".env"),
-                Path.of(System.getProperty("user.dir", "."), "..", ".env")
-        );
-
-        for (Path p : candidatePaths) {
-            try {
-                if (Files.exists(p)) {
-                    List<String> lines = Files.readAllLines(p);
-                    for (String line : lines) {
-                        line = line.trim();
-                        if (line.startsWith(key + "=")) {
-                            String value = line.substring((key + "=").length()).trim();
-                            if (value.startsWith("\"") && value.endsWith("\"") && value.length() >= 2) {
-                                value = value.substring(1, value.length() - 1);
-                            }
-                            if (!value.isBlank()) return value;
-                        }
-                    }
-                }
-            } catch (Exception ignored) {
-            }
-        }
-        return null;
     }
 
     public String resolveVoiceId(String companion) {
@@ -132,11 +89,6 @@ public class ElevenLabsServiceImpl implements ElevenLabsService {
     public byte[] generateSpeech(String text, String companion) {
         if (text == null || text.trim().isEmpty()) {
             throw new IllegalArgumentException("Text content cannot be null or empty");
-        }
-
-        if (apiKey == null || apiKey.isBlank()) {
-            // Check once more in case env was updated
-            init();
         }
 
         if (apiKey == null || apiKey.isBlank()) {
@@ -181,8 +133,8 @@ public class ElevenLabsServiceImpl implements ElevenLabsService {
                 throw new RuntimeException("ElevenLabs returned non-2xx status: " + response.getStatusCode());
             }
         } catch (HttpStatusCodeException e) {
-            log.error("[ELEVENLABS_ERROR] HTTP error from ElevenLabs API: status={} body={}", e.getStatusCode(), e.getResponseBodyAsString());
-            throw new RuntimeException("ElevenLabs API request failed with status " + e.getStatusCode() + ": " + e.getResponseBodyAsString(), e);
+            log.error("[ELEVENLABS_ERROR] HTTP error from ElevenLabs API: status={}", e.getStatusCode());
+            throw new RuntimeException("ElevenLabs API request failed with status " + e.getStatusCode(), e);
         } catch (Exception e) {
             log.error("[ELEVENLABS_ERROR] Speech synthesis failed: {}", e.getMessage());
             throw new RuntimeException("Speech synthesis failed: " + e.getMessage(), e);
