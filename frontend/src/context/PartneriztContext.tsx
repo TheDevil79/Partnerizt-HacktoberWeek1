@@ -53,7 +53,7 @@ interface PartneriztContextType {
   stopExploration: () => Promise<void>;
   toggleSimulateWalk: () => void;
   startQuest: (questId: string) => void;
-  completeQuest: (questId: string, photoUrl?: string) => Promise<void>;
+  completeQuest: (questId: string, photoUrl?: string, customDiscovery?: Partial<Discovery>) => Promise<void>;
   openCharacterChat: (characterId: CharacterId) => void;
   closeCharacterChat: () => void;
   closeCelebration: () => void;
@@ -387,7 +387,7 @@ export const PartneriztProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     );
   };
 
-  const completeQuest = async (questId: string, photoUrl?: string) => {
+  const completeQuest = async (questId: string, photoUrl?: string, customDiscovery?: Partial<Discovery>) => {
     soundService.playQuestComplete();
     const targetQuest = quests.find((q) => q.id === questId) || quests[0];
 
@@ -396,13 +396,16 @@ export const PartneriztProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       prev.map((q) => (q.id === questId ? { ...q, status: 'completed' } : q))
     );
 
-    // Create new Discovery
+    const xp = customDiscovery?.xpEarned || targetQuest.xpReward;
+    const coins = customDiscovery?.coinsEarned || targetQuest.coinReward;
+
+    // Create new Discovery with real identification details if provided
     const newDiscovery: Discovery = {
       id: `disc_${Date.now()}`,
-      title: targetQuest.title || 'Outdoor Field Discovery',
-      scientificName: undefined,
-      category: targetQuest.category.toUpperCase(),
-      characterId: targetQuest.characterId,
+      title: customDiscovery?.title || targetQuest.title || 'Outdoor Field Discovery',
+      scientificName: customDiscovery?.scientificName,
+      category: customDiscovery?.category || targetQuest.category.toUpperCase(),
+      characterId: customDiscovery?.characterId || targetQuest.characterId,
       imageUrl:
         photoUrl ||
         (targetQuest.category === 'plant'
@@ -411,12 +414,12 @@ export const PartneriztProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           ? 'https://images.unsplash.com/photo-1548625361-195fe57876a2?auto=format&fit=crop&w=600&q=80'
           : 'https://images.unsplash.com/photo-1507667522111-bf5a34e00517?auto=format&fit=crop&w=600&q=80'),
       timestamp: 'Just now',
-      locationName: 'Local Outdoor Quest Route',
-      explanation: `Awesome field work! You found this directly in your environment and documented it for ${targetQuest.characterId.toUpperCase()}.`,
-      coolFact: 'Observing real-world details outside triggers dopaminergic learning pathways far more effectively than reading textbooks!',
-      xpEarned: targetQuest.xpReward,
-      coinsEarned: targetQuest.coinReward,
-      sources: [
+      locationName: customDiscovery?.locationName || 'Local Outdoor Exploration',
+      explanation: customDiscovery?.explanation || `Awesome field work! You documented this for ${targetQuest.characterId.toUpperCase()}.`,
+      coolFact: customDiscovery?.coolFact || 'Observing real-world details outside triggers dopaminergic learning pathways far more effectively than reading textbooks!',
+      xpEarned: xp,
+      coinsEarned: coins,
+      sources: customDiscovery?.sources || [
         { title: 'Partnerizt Environmental Intelligence Engine', source: 'partnerizt.app' },
         { title: 'Global Biodiversity Knowledgebase', source: 'gbif.org' },
       ],
@@ -426,7 +429,7 @@ export const PartneriztProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     // Update user stats
     setUser((prev) => {
-      let newXp = prev.currentXp + targetQuest.xpReward;
+      let newXp = prev.currentXp + xp;
       let newLevel = prev.level;
       let nextLevelXp = prev.nextLevelXp;
 
@@ -440,7 +443,7 @@ export const PartneriztProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         level: newLevel,
         currentXp: newXp,
         nextLevelXp,
-        coins: prev.coins + targetQuest.coinReward,
+        coins: prev.coins + coins,
         questsCompletedCount: prev.questsCompletedCount + 1,
         discoveriesCount: prev.discoveriesCount + 1,
       };
@@ -454,8 +457,8 @@ export const PartneriztProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               ...prev,
               questsCompletedCount: prev.questsCompletedCount + 1,
               discoveriesCount: prev.discoveriesCount + 1,
-              xpEarned: prev.xpEarned + targetQuest.xpReward,
-              coinsEarned: prev.coinsEarned + targetQuest.coinReward,
+              xpEarned: prev.xpEarned + xp,
+              coinsEarned: prev.coinsEarned + coins,
             }
           : null
       );
@@ -464,9 +467,9 @@ export const PartneriztProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // Trigger celebration
     setCelebration({
       title: 'Quest Completed!',
-      subtitle: targetQuest.title,
-      xpEarned: targetQuest.xpReward,
-      coinsEarned: targetQuest.coinReward,
+      subtitle: customDiscovery?.title || targetQuest.title,
+      xpEarned: xp,
+      coinsEarned: coins,
       characterId: targetQuest.characterId,
     });
   };

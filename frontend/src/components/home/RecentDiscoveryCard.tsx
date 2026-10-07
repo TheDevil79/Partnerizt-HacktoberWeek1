@@ -7,7 +7,19 @@ export const RecentDiscoveryCard: React.FC = () => {
   const { discoveries, openCharacterChat } = usePartnerizt();
   const recent = discoveries[0];
 
-  if (!recent) return null;
+  if (!recent) {
+    return (
+      <div className="card-duo p-5 sm:p-6 text-center border-dashed border-2 border-slate-200 bg-slate-50/50">
+        <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-2.5">
+          <Sparkles className="w-6 h-6" />
+        </div>
+        <h4 className="text-sm font-black text-slate-800">No Recent Discoveries Yet</h4>
+        <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
+          Explore outdoors, complete quests, and photograph wildlife, plants, trees, rocks, or monuments to log your discoveries here!
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="card-duo p-5 sm:p-6">

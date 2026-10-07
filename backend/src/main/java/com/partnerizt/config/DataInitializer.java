@@ -42,9 +42,8 @@ public class DataInitializer implements CommandLineRunner {
 
         seedCompanions();
         seedBadges();
-        User user = seedUser();
+        seedUser();
         seedQuests();
-        seedSampleDiscoveries(user);
 
         log.info("Partnerizt backend initialization complete! Ready for outdoor exploration.");
     }
@@ -191,20 +190,19 @@ public class DataInitializer implements CommandLineRunner {
     private User seedUser() {
         return userRepository.findByUsername("nature_scout").orElseGet(() -> {
             User user = new User("nature_scout", "explorer@partnerizt.app");
-            user.setLevel(2);
-            user.setXp(380);
-            user.setCoins(110);
-            user.setStreak(4);
-            user.setTotalDistance(4850.0);
-            user.setTotalExplorationTime(6200L);
-            user.setDiscoveriesCount(6);
-            user.setQuestsCompletedCount(3);
+            user.setLevel(1);
+            user.setXp(0);
+            user.setCoins(0);
+            user.setStreak(1);
+            user.setTotalDistance(0.0);
+            user.setTotalExplorationTime(0L);
+            user.setDiscoveriesCount(0);
+            user.setQuestsCompletedCount(0);
             user.setLastActiveDate(LocalDateTime.now());
             User saved = userRepository.save(user);
 
-            // Award starter badges
+            // Award starter badge
             userBadgeRepository.save(new UserBadge(saved.getId(), "first_step"));
-            userBadgeRepository.save(new UserBadge(saved.getId(), "nature_scout"));
 
             return saved;
         });

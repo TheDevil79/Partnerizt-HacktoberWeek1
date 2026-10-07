@@ -15,7 +15,18 @@ export const DiscoveryGallery: React.FC = () => {
         <span className="text-xs text-slate-400 font-medium">Real-world catalog</span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {discoveries.length === 0 ? (
+        <div className="card-duo p-8 text-center border-dashed border-2 border-slate-200 bg-slate-50/50 rounded-3xl">
+          <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center mx-auto mb-3">
+            <Camera className="w-6 h-6" />
+          </div>
+          <h4 className="text-sm font-bold text-slate-800">Your Discovery Log is Empty</h4>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
+            Head outside, photograph your surroundings, and your AI companions will catalog each discovery with scientific facts and rewards.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {discoveries.map((disc) => (
           <div
             key={disc.id}
@@ -79,7 +90,8 @@ export const DiscoveryGallery: React.FC = () => {
             </div>
           </div>
         ))}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

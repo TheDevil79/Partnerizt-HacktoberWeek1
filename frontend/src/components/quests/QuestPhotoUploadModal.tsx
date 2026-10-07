@@ -245,7 +245,23 @@ export const QuestPhotoUploadModal: React.FC<QuestPhotoUploadModalProps> = ({
   const handleClaimReward = async () => {
     stopAndCleanAudio();
     if (previewImage) {
-      await completeQuest(quest.id, previewImage);
+      await completeQuest(
+        quest.id,
+        previewImage,
+        result
+          ? {
+              title: result.title,
+              scientificName: result.scientificName,
+              explanation: result.explanation,
+              coolFact: result.coolFact,
+              sources: result.sources,
+              category: result.domain || quest.category.toUpperCase(),
+              characterId: quest.characterId,
+              xpEarned: result.xpEarned || quest.xpReward,
+              coinsEarned: result.coinsEarned || quest.coinReward,
+            }
+          : undefined
+      );
       onClose();
     }
   };

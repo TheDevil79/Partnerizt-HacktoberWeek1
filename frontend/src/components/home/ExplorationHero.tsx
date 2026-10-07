@@ -9,8 +9,6 @@ export const ExplorationHero: React.FC = () => {
     activeSession,
     startExploration,
     stopExploration,
-    isSimulatingWalk,
-    toggleSimulateWalk,
     gpsAccuracy,
     locationPermissionStatus,
     quests,
@@ -146,21 +144,10 @@ export const ExplorationHero: React.FC = () => {
           </div>
 
           {/* Controls */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-            <button
-              onClick={toggleSimulateWalk}
-              className={`w-full sm:w-auto text-xs font-bold px-3.5 py-2 rounded-xl transition-all border ${
-                isSimulatingWalk
-                  ? 'bg-amber-400 text-amber-950 border-amber-300 shadow-sm'
-                  : 'bg-emerald-800/80 hover:bg-emerald-800 text-emerald-100 border-emerald-600'
-              }`}
-            >
-              {isSimulatingWalk ? '🚶 Walk Simulation: ON' : '💡 Simulate Walk (Desktop)'}
-            </button>
-
+          <div className="flex items-center justify-end gap-3">
             <button
               onClick={stopExploration}
-              className="w-full sm:w-auto bg-rose-500 hover:bg-rose-600 text-white font-black text-sm px-6 py-3 rounded-2xl border-b-4 border-rose-800 active:border-b-0 active:translate-y-1 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full sm:w-auto bg-rose-500 hover:bg-rose-600 text-white font-black text-sm px-7 py-3.5 rounded-2xl border-b-4 border-rose-800 active:border-b-0 active:translate-y-1 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
             >
               <Square className="w-4 h-4 fill-white" />
               <span>STOP & SAVE SESSION</span>

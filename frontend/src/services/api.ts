@@ -275,7 +275,7 @@ class PartneriztApiClient {
   public async getHomeSummary(): Promise<{
     user: UserStats;
     todayQuest: Quest;
-    recentDiscovery: Discovery;
+    recentDiscovery?: Discovery;
   }> {
     const remoteUser = await this.fetchApi<any>('/users/stats');
     const remoteDaily = await this.fetchApi<any[]>('/quests/daily');
@@ -327,7 +327,7 @@ class PartneriztApiClient {
         iconEmoji: q.iconEmoji || '🌟',
       };
 
-      const firstDisc = remoteDiscoveries && remoteDiscoveries.length > 0 ? remoteDiscoveries[0] : MOCK_RECENT_DISCOVERY;
+      const firstDisc = remoteDiscoveries && remoteDiscoveries.length > 0 ? remoteDiscoveries[0] : undefined;
 
       return {
         user: mappedUser,
@@ -340,7 +340,7 @@ class PartneriztApiClient {
     return {
       user: { ...MOCK_USER_STATS },
       todayQuest: MOCK_QUESTS[0],
-      recentDiscovery: MOCK_RECENT_DISCOVERY,
+      recentDiscovery: undefined,
     };
   }
 
@@ -884,9 +884,10 @@ class PartneriztApiClient {
     discoveries: Discovery[];
   }> {
     const summary = await this.getHomeSummary();
+    const remoteDiscoveries = await this.fetchApi<any[]>('/discoveries');
     return {
       user: summary.user,
-      discoveries: [...MOCK_DISCOVERY_GALLERY],
+      discoveries: remoteDiscoveries || [],
     };
   }
 
