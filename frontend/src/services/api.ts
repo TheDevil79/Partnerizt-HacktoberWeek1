@@ -601,12 +601,41 @@ class PartneriztApiClient {
     const sanitizeCompanionReply = (raw: string): string => {
       let t = raw.trim();
 
-      // If text contains "Answer:" or "Birdo:", extract after it
-      if (t.includes('Answer:')) {
-        t = t.substring(t.indexOf('Answer:') + 7).trim();
+      // 1. If text contains explicit Option / Draft / Answer / Response markers, extract the final spoken option
+      const optionMatches = [...t.matchAll(/(?:\*\s*\*?(?:Option\s*\d*|Draft\s*\d*|Final\s*Response|Answer|Response)\s*\*?:\s*\*?)/gi)];
+      if (optionMatches.length > 0) {
+        const lastMatch = optionMatches[optionMatches.length - 1];
+        if (lastMatch.index !== undefined) {
+          t = t.substring(lastMatch.index + lastMatch[0].length).trim();
+        }
       }
 
-      // If text has metadata lines like "User asks:", "Role:", "Prompt:", "Task:", strip them
+      // 2. If text contains inline bullet metadata like "User Question: ... * Role: ... * Constraints: ...", filter out metadata segments
+      if (t.toLowerCase().includes('user question:') || t.toLowerCase().includes('* role:') || t.toLowerCase().includes('* constraints:')) {
+        const segments = t.split(/(?=\s\*\s+|\n\*\s*)/);
+        const goodSegments = segments.filter((seg) => {
+          const s = seg.trim().replace(/^\*+\s*/, '').toLowerCase();
+          return (
+            !s.startsWith('user question:') &&
+            !s.startsWith('question:') &&
+            !s.startsWith('role:') &&
+            !s.startsWith('constraints:') &&
+            !s.startsWith('respond in') &&
+            !s.startsWith('do not') &&
+            !s.startsWith('speak directly') &&
+            !s.startsWith('checklist:') &&
+            !s.startsWith('rubric:') &&
+            !s.startsWith('criteria:') &&
+            !s.startsWith('first-person') &&
+            !s.startsWith('friendly')
+          );
+        });
+        if (goodSegments.length > 0) {
+          t = goodSegments.map(s => s.trim().replace(/^\*+\s*/, '')).join(' ').trim();
+        }
+      }
+
+      // 3. If text has multiline metadata lines, strip them
       const lines = t.split('\n');
       const cleanLines = lines.filter((line) => {
         const lower = line.trim().toLowerCase();
@@ -624,23 +653,13 @@ class PartneriztApiClient {
       });
       t = cleanLines.join(' ').trim();
 
-      // If there is a trailing checklist (e.g., "* First-person? Yes", "* Friendly/Cheerful? Yes"), cut it off
+      // 4. If there is a trailing checklist (e.g., "* First-person? Yes", "* Friendly/Cheerful? Yes"), cut it off
       const checklistIndex = t.search(/\s\*\s+(First-person|Friendly|Cheerful|Knowledgeable|Safety|Checklist|Criteria|Rubric)\b/i);
-      if (checklistIndex > 15) {
+      if (checklistIndex > 30) {
         t = t.substring(0, checklistIndex).trim();
       }
 
-      // If the LLM returned draft variations, isolate the final draft
-      if (t.includes('Draft 2') || t.includes('Draft 3') || t.includes('Draft 1')) {
-        const lastDraft = Math.max(t.lastIndexOf('Draft 2'), t.lastIndexOf('Draft 1'));
-        const colon = t.indexOf(':', lastDraft);
-        if (colon !== -1 && colon + 1 < t.length) {
-          t = t.substring(colon + 1).trim();
-          t = t.replace(/^\*+|\*+$/g, '').trim();
-        }
-      }
-
-      // Remove any leftover prefix like "Birdo:" or "Birdo (cheerful..."
+      // 5. Remove any leftover prefix like "Flora:" or "Flora (cheerful..."
       if (t.toLowerCase().startsWith(charName.toLowerCase() + ':')) {
         t = t.substring(charName.length + 1).trim();
       }
@@ -648,6 +667,11 @@ class PartneriztApiClient {
         const closeParen = t.indexOf(').');
         if (closeParen !== -1 && closeParen + 2 < t.length) {
           t = t.substring(closeParen + 2).trim();
+        } else {
+          const singleClose = t.indexOf(')');
+          if (singleClose !== -1 && singleClose + 1 < t.length) {
+            t = t.substring(singleClose + 1).trim();
+          }
         }
       }
 
