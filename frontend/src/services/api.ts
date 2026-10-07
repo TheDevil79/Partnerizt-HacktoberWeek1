@@ -15,7 +15,9 @@ import {
   MOCK_USER_STATS,
 } from './mockData';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '/api/v1';
+const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:8080').trim();
+// Base URL represents only the backend origin (e.g. "http://localhost:8080" or "https://partnerizt-backend.onrender.com")
+const API_BASE_URL = rawBaseUrl.replace(/\/+$/, '').replace(/\/api\/v1$/, '');
 const IDENTIFICATION_TIMEOUT_MS = 90000;
 
 // Domain-tailored AI chat responses for resilient offline / fallback mode
@@ -211,61 +213,55 @@ const CHARACTER_RESPONSES: Record<
 class PartneriztApiClient {
   private async fetchApi<T>(endpoint: string, options?: RequestInit, timeoutMs = 30000): Promise<T | null> {
     const isIdentify = endpoint.includes('/discoveries/identify');
-    const urlsToTry = [
-      `/api/v1${endpoint}`,
-      `${API_BASE_URL}${endpoint}`,
-      `http://localhost:8080/api/v1${endpoint}`,
-    ];
-    const uniqueUrls = Array.from(new Set(urlsToTry));
+    const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const url = `${API_BASE_URL}/api/v1${normalizedEndpoint}`;
 
-    for (const url of uniqueUrls) {
-      let isTimedOut = false;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        isTimedOut = true;
-        controller.abort();
-      }, timeoutMs);
+    let isTimedOut = false;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      isTimedOut = true;
+      controller.abort();
+    }, timeoutMs);
 
-      try {
-        if (isIdentify) {
-          const bodyObj = options?.body ? JSON.parse(options.body as string) : {};
-          const hasImg = Boolean(bodyObj.photoUrl || bodyObj.photoBase64);
-          const size = (bodyObj.photoUrl || bodyObj.photoBase64 || '').length;
-          console.log(`[IDENTIFY_FRONTEND_START] endpoint=${url} hasImage=${hasImg} payloadSize=${size}`);
-        }
-
-        const res = await fetch(url, {
-          ...options,
-          signal: controller.signal,
-          headers: {
-            'Content-Type': 'application/json',
-            ...(options?.headers || {}),
-          },
-        });
-        clearTimeout(timeoutId);
-
-        if (isIdentify) {
-          console.log(`[IDENTIFY_FRONTEND_RESPONSE] status=${res.status} ok=${res.ok}`);
-        }
-
-        if (res.ok) {
-          const json = await res.json();
-          return json.data !== undefined ? json.data : json;
-        } else {
-          const errText = await res.text();
-          if (isIdentify) {
-            console.error(`[IDENTIFY_FRONTEND_ERROR] url=${url} status=${res.status} error=${errText}`);
-          }
-        }
-      } catch (e: any) {
-        clearTimeout(timeoutId);
-        if (isTimedOut) {
-          console.warn(`[IDENTIFY_FRONTEND_TIMEOUT] Request to ${url} timed out after ${timeoutMs}ms`);
-        } else if (isIdentify) {
-          console.error(`[IDENTIFY_FRONTEND_ERROR] url=${url} error=${e?.message || e}`);
-        }
-        console.warn(`[Partnerizt API] Request to ${url} failed or timed out:`, e);
+    try {
+      if (isIdentify) {
+        const bodyObj = options?.body ? JSON.parse(options.body as string) : {};
+        const hasImg = Boolean(bodyObj.photoUrl || bodyObj.photoBase64);
+        const size = (bodyObj.photoUrl || bodyObj.photoBase64 || '').length;
+        console.log(`[IDENTIFY_FRONTEND_START] endpoint=${url} hasImage=${hasImg} payloadSize=${size}`);
       }
+
+      const res = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(options?.headers || {}),
+        },
+      });
+      clearTimeout(timeoutId);
+
+      if (isIdentify) {
+        console.log(`[IDENTIFY_FRONTEND_RESPONSE] status=${res.status} ok=${res.ok}`);
+      }
+
+      if (res.ok) {
+        const json = await res.json();
+        return json.data !== undefined ? json.data : json;
+      } else {
+        const errText = await res.text();
+        if (isIdentify) {
+          console.error(`[IDENTIFY_FRONTEND_ERROR] url=${url} status=${res.status} error=${errText}`);
+        }
+      }
+    } catch (e: any) {
+      clearTimeout(timeoutId);
+      if (isTimedOut) {
+        console.warn(`[IDENTIFY_FRONTEND_TIMEOUT] Request to ${url} timed out after ${timeoutMs}ms`);
+      } else if (isIdentify) {
+        console.error(`[IDENTIFY_FRONTEND_ERROR] url=${url} error=${e?.message || e}`);
+      }
+      console.warn(`[Partnerizt API] Request to ${url} failed or timed out:`, e);
     }
     return null;
   }
@@ -844,38 +840,31 @@ class PartneriztApiClient {
   public async speakCompanionText(text: string, companion?: string): Promise<Blob | null> {
     if (!text || !text.trim()) return null;
 
-    const urlsToTry = [
-      `/api/v1/audio/speak`,
-      `${API_BASE_URL}/audio/speak`,
-      `http://localhost:8080/api/v1/audio/speak`,
-    ];
-    const uniqueUrls = Array.from(new Set(urlsToTry));
+    const url = `${API_BASE_URL}/api/v1/audio/speak`;
 
-    for (const url of uniqueUrls) {
-      try {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'audio/mpeg',
-          },
-          body: JSON.stringify({
-            text: text.trim(),
-            companion: companion || 'birdo',
-          }),
-        });
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'audio/mpeg',
+        },
+        body: JSON.stringify({
+          text: text.trim(),
+          companion: companion || 'birdo',
+        }),
+      });
 
-        if (res.ok) {
-          const blob = await res.blob();
-          if (blob && blob.size > 0) {
-            return blob;
-          }
-        } else {
-          console.warn(`[Partnerizt TTS] Endpoint ${url} returned status: ${res.status}`);
+      if (res.ok) {
+        const blob = await res.blob();
+        if (blob && blob.size > 0) {
+          return blob;
         }
-      } catch (err) {
-        console.warn(`[Partnerizt TTS] Failed calling ${url}:`, err);
+      } else {
+        console.warn(`[Partnerizt TTS] Endpoint ${url} returned status: ${res.status}`);
       }
+    } catch (err) {
+      console.warn(`[Partnerizt TTS] Failed calling ${url}:`, err);
     }
     return null;
   }
