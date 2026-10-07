@@ -1,0 +1,36 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: partnerizt-backend
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:h2:mem:partneriztdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL}
+    username: ${SPRING_DATASOURCE_USERNAME:sa}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER:org.h2.Driver}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+# External Services configuration
+ai:
+  gemma:
+    model-name: ${GEMMA_MODEL_NAME:gemma-4-26b-a4b-it}
+    api-endpoint: ${GEMMA_API_ENDPOINT:https://generativelanguage.googleapis.com/v1beta}
+    api-key: ${GEMMA_API_KEY:}
+  serpapi:
+    api-key: ${SERPAPI_API_KEY:}
+  elevenlabs:
+    api-key: ${ELEVENLABS_API_KEY:}
+    model-id: ${ELEVENLABS_MODEL_ID:eleven_multilingual_v2}
+    default-voice-id: ${ELEVENLABS_DEFAULT_VOICE_ID:21m00Tcm4TlvDq8ikWAM}
+    voice-birdo: ${ELEVENLABS_VOICE_BIRDO:IKne3meq5aSn9XLyUdCD}
+    voice-flora: ${ELEVENLABS_VOICE_FLORA:EXAVITQu4vr4xnSDxMaL}
+    voice-atlas: ${ELEVENLABS_VOICE_ATLAS:VR6AewLTigWG4xSOukaG}
+    voice-munch: ${ELEVENLABS_VOICE_MUNCH:pNInz6obpgDQGcFmaJgB}
+    voice-nova: ${ELEVENLABS_VOICE_NOVA:AZnzlk1XvdvUeBnXmlld}
