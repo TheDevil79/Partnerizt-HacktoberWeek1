@@ -207,23 +207,6 @@ public class GemmaServiceImpl implements GemmaService {
 
         List<Map<String, Object>> contents = new ArrayList<>();
 
-        // Multi-turn system persona framing
-        String systemInstruction = String.format(
-                "You are %s, an enthusiastic outdoor learning companion for the Partnerizt exploration app. %s " +
-                "Respond directly in first person as %s in 2-3 engaging, conversational sentences. " +
-                "Output ONLY your spoken answer. Do NOT repeat the question, and do NOT include planning, options, or checklists.",
-                compName, systemPrompt, compName
-        );
-
-        contents.add(Map.of(
-                "role", "user",
-                "parts", List.of(Map.of("text", systemInstruction))
-        ));
-        contents.add(Map.of(
-                "role", "model",
-                "parts", List.of(Map.of("text", "Understood! I will answer directly in first person as " + compName + " without repeating questions or adding options/checklists."))
-        ));
-
         if (history != null && !history.isEmpty()) {
             // Include recent history (up to last 6 messages)
             int startIdx = Math.max(0, history.size() - 6);
@@ -244,13 +227,21 @@ public class GemmaServiceImpl implements GemmaService {
                 "parts", List.of(Map.of("text", userMessage))
         ));
 
-        Map<String, Object> body = Map.of(
-                "contents", contents,
-                "generationConfig", Map.of(
-                        "temperature", 0.7,
-                        "maxOutputTokens", 800
-                )
+        String systemInstructionText = String.format(
+                "You are %s, an enthusiastic outdoor learning companion for the Partnerizt exploration app. %s " +
+                "Speak directly in first-person as %s in 2-3 engaging, conversational sentences. " +
+                "Never output thinking, planning, constraints, prompt breakdowns, checklists, drafts, or option labels. " +
+                "Output ONLY your final spoken dialogue to the user.",
+                compName, systemPrompt, compName
         );
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("systemInstruction", Map.of("parts", List.of(Map.of("text", systemInstructionText))));
+        body.put("contents", contents);
+        body.put("generationConfig", Map.of(
+                "temperature", 0.7,
+                "maxOutputTokens", 800
+        ));
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
         ResponseEntity<String> response = restTemplate.postForEntity(nativeUrl, entity, String.class);
@@ -285,35 +276,41 @@ public class GemmaServiceImpl implements GemmaService {
         if (rawText == null || rawText.isBlank()) return rawText;
         String text = rawText.trim();
 
-        // 1. If text contains explicit Option / Draft / Answer / Response markers, extract the final spoken option
-        java.util.regex.Pattern optionPattern = java.util.regex.Pattern.compile("(?i)(\\*\\s*\\*?(Option\\s*\\d*|Draft\\s*\\d*|Final\\s*Response|Answer|Response)\\s*\\*?:\\s*\\*?)");
-        java.util.regex.Matcher optMatcher = optionPattern.matcher(text);
-        int lastOptionEnd = -1;
-        while (optMatcher.find()) {
-            lastOptionEnd = optMatcher.end();
-        }
-        if (lastOptionEnd != -1 && lastOptionEnd < text.length()) {
-            text = text.substring(lastOptionEnd).trim();
+        // 1. Look for explicit Option/Draft markers (e.g. "* *Option 1:*", "Option 1:", "**Draft 1:**", "Final Response:")
+        java.util.regex.Pattern optionStartPattern = java.util.regex.Pattern.compile("(?i)(?:^|\\n|\\s)\\*?\\s*\\*?(?:Option\\s*\\d*|Draft\\s*\\d*|Version\\s*\\d*|Response|Answer|Final\\s*Response)\\s*\\*?:\\s*\\*?");
+        java.util.regex.Matcher optStartMatcher = optionStartPattern.matcher(text);
+        if (optStartMatcher.find()) {
+            text = text.substring(optStartMatcher.end()).trim();
+            // If there is a subsequent option (Option 2, Draft 2, etc.) or Checklist, cut off before it
+            java.util.regex.Pattern nextOptionPattern = java.util.regex.Pattern.compile("(?i)(?:\\n|\\s)\\*?\\s*\\*?(?:Option\\s*[2-9]|Draft\\s*[2-9]|Version\\s*[2-9]|Checklist|Rubric)\\b");
+            java.util.regex.Matcher nextOptMatcher = nextOptionPattern.matcher(text);
+            if (nextOptMatcher.find() && nextOptMatcher.start() > 20) {
+                text = text.substring(0, nextOptMatcher.start()).trim();
+            }
         }
 
         // 2. Strip inline/multiline metadata sections like "User Question: ... * Role: ... * Constraints: ..."
-        if (text.toLowerCase().contains("user question:") || text.toLowerCase().contains("* role:") || text.toLowerCase().contains("* constraints:")) {
-            String[] segments = text.split("(?=(\\s\\*\\s+|\\n\\*\\s*))");
+        if (text.toLowerCase().contains("user question:") || text.toLowerCase().contains("role:") || text.toLowerCase().contains("constraints:")) {
+            String[] segments = text.split("(?=(\\s\\*\\s+|\\n\\*\\s*|\\n))");
             List<String> goodSegments = new ArrayList<>();
             for (String seg : segments) {
                 String s = seg.trim().replaceAll("^\\*+\\s*", "").trim();
                 String lower = s.toLowerCase();
                 if (lower.startsWith("user question:") ||
                     lower.startsWith("question:") ||
+                    lower.startsWith("user asks:") ||
+                    lower.startsWith("prompt:") ||
                     lower.startsWith("role:") ||
                     lower.startsWith("constraints:") ||
                     lower.startsWith("respond in") ||
                     lower.startsWith("do not") ||
                     lower.startsWith("speak directly") ||
+                    lower.startsWith("guidelines:") ||
                     lower.startsWith("checklist:") ||
                     lower.startsWith("rubric:") ||
                     lower.startsWith("criteria:") ||
                     lower.startsWith("first-person") ||
+                    lower.startsWith("persona:") ||
                     lower.startsWith("friendly")) {
                     continue;
                 }
@@ -324,7 +321,15 @@ public class GemmaServiceImpl implements GemmaService {
             }
         }
 
-        // 3. Strip leading question echoes if any (e.g. Question: "..." or User asks: ...)
+        // 3. Cut off duplicate drafts separated by ` * "` or ` * '` or `\n* "`
+        // (e.g. "Sentence A. * \"Sentence A.")
+        java.util.regex.Pattern dupDraftPattern = java.util.regex.Pattern.compile("(?i)(?:\\s\\*\\s+|\\n\\*\\s*)[\"']");
+        java.util.regex.Matcher dupMatcher = dupDraftPattern.matcher(text);
+        if (dupMatcher.find() && dupMatcher.start() > 30) {
+            text = text.substring(0, dupMatcher.start()).trim();
+        }
+
+        // 4. Strip leading question echoes if any (e.g. Question: "..." or User asks: ...)
         String[] lines = text.split("\r?\n");
         List<String> cleanLines = new ArrayList<>();
         for (String line : lines) {
@@ -344,10 +349,10 @@ public class GemmaServiceImpl implements GemmaService {
             text = String.join(" ", cleanLines).trim();
         }
 
-        // 4. Strip trailing self-evaluation / persona checklists (e.g., "* First-person? Yes", "* Friendly/Cheerful?", "* Checklist:")
+        // 5. Strip trailing self-evaluation / persona checklists (e.g., "* First-person? Yes", "* Friendly/Cheerful?", "* Checklist:")
         String[] checklistIndicators = {
                 "* First-person", "* Friendly", "* Cheerful", "* Knowledgeable",
-                "* Safety", "* Scientific", "* Draft", "* Checklist", "* Criteria", "* Persona", "* Rubric"
+                "* Safety", "* Scientific", "* Draft", "* Checklist", "* Criteria", "* Persona", "* Rubric", "* Option 2"
         };
         for (String indicator : checklistIndicators) {
             int idx = text.indexOf(indicator);
@@ -363,7 +368,7 @@ public class GemmaServiceImpl implements GemmaService {
             text = text.substring(0, matcher.start()).trim();
         }
 
-        // 5. Remove any meta intro like "Birdo:" or "Birdo (cheerful..."
+        // 6. Remove any meta intro like "Birdo:" or "Birdo (cheerful..."
         if (companionName != null && !companionName.isBlank()) {
             String prefix = companionName.trim() + ":";
             if (text.toLowerCase().startsWith(prefix.toLowerCase())) {

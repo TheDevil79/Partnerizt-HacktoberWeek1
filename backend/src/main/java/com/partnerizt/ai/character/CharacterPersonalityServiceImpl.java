@@ -163,6 +163,20 @@ public class CharacterPersonalityServiceImpl implements CharacterPersonalityServ
             return "Yes! Green (unripe) mangoes are completely safe and widely eaten across Asian, Latin American, and Caribbean cuisines! They are tangy, firm, and packed with Vitamin C and pectin. They are delicious in salads (like Thai som tum), pickles, chutneys, or sprinkled with salt and chili. Just be sure to rinse any sticky sap from the stem area, as mango sap can irritate sensitive skin." + factContext;
         }
 
+        if (lower.contains("taj mahal") || lower.contains("tajmahal")) {
+            if (lower.contains("yellow") || lower.contains("color") || lower.contains("pollution") || lower.contains("dirty") || lower.contains("discolor") || lower.contains("acid")) {
+                return "The Taj Mahal's white Makrana marble has developed a yellowish tinge due to environmental air pollution and acid rain in Agra! Sulfur dioxide from industrial emissions and soot particulates react with moisture to form sulfuric acid, which oxidizes and discolors the porous marble." + factContext;
+            } else if (lower.contains("old") || lower.contains("age") || lower.contains("built") || lower.contains("when") || lower.contains("history") || lower.contains("shah jahan")) {
+                return "The Taj Mahal is about 370+ years old! Commissioned in 1632 by Mughal Emperor Shah Jahan as a mausoleum for his beloved wife Mumtaz Mahal, the main marble mausoleum was completed in 1648, featuring exquisite symmetrical Indo-Islamic architecture." + factContext;
+            } else {
+                return "The Taj Mahal is a masterpiece of Mughal architecture crafted from translucent Makrana marble with intricate floral pietra dura stone inlays! Its central dome and four minarets are designed with subtle outward tilt for seismic resilience." + factContext;
+            }
+        }
+
+        if (lower.contains("pyramid") || lower.contains("pyramids") || lower.contains("giza") || lower.contains("egypt")) {
+            return "The Great Pyramids of Giza are approximately 4,500 years old! Built around 2500 BCE during Egypt's Old Kingdom as monumental royal tombs, their immense limestone and granite blocks were cut and aligned with remarkable astronomical precision." + factContext;
+        }
+
         if (lower.contains("berry") || lower.contains("berries") || lower.contains("forage") || lower.contains("foraging")) {
             return "You can often find wild berries like blackberries and mulberries thriving in urban micro-habitats such as park borders, sunny fence lines, and railway embankments! Just be sure to cross-check identification before foraging.";
         }

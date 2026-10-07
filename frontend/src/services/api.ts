@@ -118,13 +118,33 @@ const CHARACTER_RESPONSES: Record<
   },
   atlas: (q: string) => {
     const qLower = q.toLowerCase();
-    if (qLower.includes('taj mahal') || qLower.includes('agra') || qLower.includes('shah jahan')) {
+    if (qLower.includes('taj mahal') || qLower.includes('tajmahal')) {
+      if (qLower.includes('yellow') || qLower.includes('color') || qLower.includes('pollution') || qLower.includes('dirty') || qLower.includes('discolor') || qLower.includes('acid')) {
+        return {
+          text: `The Taj Mahal's white Makrana marble has developed a yellowish tinge over time due to airborne pollution and acid rain in Agra! Industrial sulfur dioxide and particulate matter react with moisture to form sulfuric acid, which oxidizes and discolors the porous marble.`,
+          activity: `Notice how ambient air and weathering affect outdoor stone monuments in your own neighborhood!`,
+          sources: [
+            { title: 'UNESCO World Heritage Centre — Taj Mahal Conservation', source: 'unesco.org' },
+            { title: 'Environmental Pollution & Heritage Science', source: 'heritagesciencejournal.springeropen.com' },
+          ],
+        };
+      }
       return {
         text: `The Taj Mahal is approximately 370+ years old! Commissioned in 1632 by Mughal Emperor Shah Jahan as a mausoleum for his beloved wife Mumtaz Mahal, the main marble mausoleum was completed around 1648, with the surrounding complex and minarets finalized by 1653. It is crafted from white Makrana marble featuring intricate pietra dura inlays and symmetrical Indo-Islamic architecture.`,
         activity: `Look up high-resolution architectural plans of the Taj Mahal to admire the perfect octagonal symmetry of its central chamber!`,
         sources: [
           { title: 'UNESCO World Heritage Centre — Taj Mahal', source: 'unesco.org' },
           { title: 'Architectural Heritage Review — Mughal Engineering', source: 'sah.org' },
+        ],
+      };
+    }
+    if (qLower.includes('pyramid') || qLower.includes('pyramids') || qLower.includes('giza') || qLower.includes('egypt')) {
+      return {
+        text: `The Great Pyramids of Giza are approximately 4,500 years old! Built around 2500 BCE during Egypt's Old Kingdom as monumental royal tombs, their immense limestone and granite blocks were cut and aligned with remarkable astronomical precision.`,
+        activity: `Look at how ancient stone structures redirect massive downward gravitational loads without modern steel frames!`,
+        sources: [
+          { title: 'Smithsonian Magazine — Mysteries of the Pyramids', source: 'smithsonianmag.com' },
+          { title: 'Archaeological Institute of America', source: 'archaeological.org' },
         ],
       };
     }
@@ -601,32 +621,41 @@ class PartneriztApiClient {
     const sanitizeCompanionReply = (raw: string): string => {
       let t = raw.trim();
 
-      // 1. If text contains explicit Option / Draft / Answer / Response markers, extract the final spoken option
-      const optionMatches = [...t.matchAll(/(?:\*\s*\*?(?:Option\s*\d*|Draft\s*\d*|Final\s*Response|Answer|Response)\s*\*?:\s*\*?)/gi)];
-      if (optionMatches.length > 0) {
-        const lastMatch = optionMatches[optionMatches.length - 1];
-        if (lastMatch.index !== undefined) {
-          t = t.substring(lastMatch.index + lastMatch[0].length).trim();
+      // 1. Look for explicit Option/Draft markers (e.g. "* *Option 1:*", "Option 1:", "**Draft 1:**", "Final Response:")
+      const optionStartMatches = [...t.matchAll(/(?:^|\n|\s)\*?\s*\*?(?:Option\s*\d*|Draft\s*\d*|Version\s*\d*|Response|Answer|Final\s*Response)\s*\*?:\s*\*?/gi)];
+      if (optionStartMatches.length > 0) {
+        const firstMatch = optionStartMatches[0];
+        if (firstMatch.index !== undefined) {
+          t = t.substring(firstMatch.index + firstMatch[0].length).trim();
+          // If there is a subsequent option (Option 2, Draft 2, etc.) or Checklist, cut off before it
+          const nextOptMatch = t.match(/(?:\n|\s)\*?\s*\*?(?:Option\s*[2-9]|Draft\s*[2-9]|Version\s*[2-9]|Checklist|Rubric)\b/i);
+          if (nextOptMatch && nextOptMatch.index !== undefined && nextOptMatch.index > 20) {
+            t = t.substring(0, nextOptMatch.index).trim();
+          }
         }
       }
 
       // 2. If text contains inline bullet metadata like "User Question: ... * Role: ... * Constraints: ...", filter out metadata segments
-      if (t.toLowerCase().includes('user question:') || t.toLowerCase().includes('* role:') || t.toLowerCase().includes('* constraints:')) {
-        const segments = t.split(/(?=\s\*\s+|\n\*\s*)/);
+      if (t.toLowerCase().includes('user question:') || t.toLowerCase().includes('role:') || t.toLowerCase().includes('constraints:')) {
+        const segments = t.split(/(?=\s\*\s+|\n\*\s*|\n)/);
         const goodSegments = segments.filter((seg) => {
           const s = seg.trim().replace(/^\*+\s*/, '').toLowerCase();
           return (
             !s.startsWith('user question:') &&
             !s.startsWith('question:') &&
+            !s.startsWith('user asks:') &&
+            !s.startsWith('prompt:') &&
             !s.startsWith('role:') &&
             !s.startsWith('constraints:') &&
             !s.startsWith('respond in') &&
             !s.startsWith('do not') &&
             !s.startsWith('speak directly') &&
+            !s.startsWith('guidelines:') &&
             !s.startsWith('checklist:') &&
             !s.startsWith('rubric:') &&
             !s.startsWith('criteria:') &&
             !s.startsWith('first-person') &&
+            !s.startsWith('persona:') &&
             !s.startsWith('friendly')
           );
         });
@@ -635,7 +664,13 @@ class PartneriztApiClient {
         }
       }
 
-      // 3. If text has multiline metadata lines, strip them
+      // 3. Cut off duplicate drafts separated by ` * "` or ` * '` or `\n* "`
+      const dupDraftIndex = t.search(/(?:\s\*\s+|\n\*\s*)["']/);
+      if (dupDraftIndex > 30) {
+        t = t.substring(0, dupDraftIndex).trim();
+      }
+
+      // 4. If text has multiline metadata lines, strip them
       const lines = t.split('\n');
       const cleanLines = lines.filter((line) => {
         const lower = line.trim().toLowerCase();
@@ -643,23 +678,23 @@ class PartneriztApiClient {
           !lower.startsWith('user asks:') &&
           !lower.startsWith('user question:') &&
           !lower.startsWith('question:') &&
+          !lower.startsWith('prompt:') &&
           !lower.startsWith('role:') &&
-          !lower.startsWith('* role:') &&
+          !lower.startsWith('constraints:') &&
           !lower.startsWith('task:') &&
-          !lower.startsWith('* task:') &&
           !lower.startsWith('system:') &&
           !lower.startsWith('system instruction:')
         );
       });
       t = cleanLines.join(' ').trim();
 
-      // 4. If there is a trailing checklist (e.g., "* First-person? Yes", "* Friendly/Cheerful? Yes"), cut it off
-      const checklistIndex = t.search(/\s\*\s+(First-person|Friendly|Cheerful|Knowledgeable|Safety|Checklist|Criteria|Rubric)\b/i);
+      // 5. If there is a trailing checklist (e.g., "* First-person? Yes", "* Friendly/Cheerful? Yes"), cut it off
+      const checklistIndex = t.search(/\s\*\s+(First-person|Friendly|Cheerful|Knowledgeable|Safety|Checklist|Criteria|Persona|Rubric|Option\s*2)\b/i);
       if (checklistIndex > 30) {
         t = t.substring(0, checklistIndex).trim();
       }
 
-      // 5. Remove any leftover prefix like "Flora:" or "Flora (cheerful..."
+      // 6. Remove any leftover prefix like "Flora:" or "Flora (cheerful..."
       if (t.toLowerCase().startsWith(charName.toLowerCase() + ':')) {
         t = t.substring(charName.length + 1).trim();
       }
@@ -689,23 +724,14 @@ class PartneriztApiClient {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
+                systemInstruction: {
+                  parts: [
+                    {
+                      text: `You are ${charName} for the Partnerizt outdoor learning app. ${persona} Speak directly in first person as ${charName} in 2-3 engaging, conversational sentences. Never output thinking, outlines, drafts, rubrics, or checklists. Output ONLY your spoken dialogue.`,
+                    },
+                  ],
+                },
                 contents: [
-                  {
-                    role: 'user',
-                    parts: [
-                      {
-                        text: `You are ${charName} for the Partnerizt outdoor learning app. ${persona} Always speak directly in first person as ${charName} in 2-3 engaging, conversational sentences. Never repeat the question or add checklists.`,
-                      },
-                    ],
-                  },
-                  {
-                    role: 'model',
-                    parts: [
-                      {
-                        text: `Understood! I'm ${charName}, ready to help the explorer!`,
-                      },
-                    ],
-                  },
                   {
                     role: 'user',
                     parts: [{ text: userQuestion }],

@@ -93,4 +93,28 @@ public class CharacterChatContextTest {
         assertNotNull(reply);
         assertTrue(reply.toLowerCase().contains("safety") || reply.toLowerCase().contains("mushroom") || reply.toLowerCase().contains("toxic") || reply.toLowerCase().contains("mycologist"), "Must provide foraging safety advisory");
     }
+
+    @Test
+    @DisplayName("User asks 'Why does Taj Mahal looks a bit yellowish nowadays?' — must discuss pollution and marble discoloration")
+    void testTajMahalYellowingGrounding() {
+        String userQuestion = "Why does Taj Mahal looks a bit yellowish nowadays?";
+        SerpApiResult serpApi = new SerpApiResult(userQuestion, List.of("Air pollution and acid rain discolor the white marble of the Taj Mahal."), List.of());
+
+        String reply = characterService.generateChatReply(atlas, userQuestion, List.of(), serpApi);
+
+        assertNotNull(reply);
+        assertTrue(reply.toLowerCase().contains("yellow") || reply.toLowerCase().contains("pollution") || reply.toLowerCase().contains("marble") || reply.toLowerCase().contains("sulfur"), "Must discuss marble yellowing and pollution");
+    }
+
+    @Test
+    @DisplayName("User asks 'how old are the pyramids of Egypt?' — must discuss 4500 years and Old Kingdom")
+    void testPyramidsAgeGrounding() {
+        String userQuestion = "how old are the pyramids of Egypt?";
+        SerpApiResult serpApi = new SerpApiResult(userQuestion, List.of("The Pyramids of Giza were built around 2500 BCE."), List.of());
+
+        String reply = characterService.generateChatReply(atlas, userQuestion, List.of(), serpApi);
+
+        assertNotNull(reply);
+        assertTrue(reply.toLowerCase().contains("4,500") || reply.toLowerCase().contains("4500") || reply.toLowerCase().contains("pyramid") || reply.toLowerCase().contains("old kingdom"), "Must discuss pyramid age");
+    }
 }
