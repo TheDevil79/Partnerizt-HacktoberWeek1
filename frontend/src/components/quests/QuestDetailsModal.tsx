@@ -133,9 +133,10 @@ export const QuestDetailsModal: React.FC<QuestDetailsModalProps> = ({
               )}
             </div>
           </div>
-        </div>,
-        document.body
-      )}
+        </div>
+      </div>,
+      document.body
+    )}
 
       {/* Photo submission modal */}
       {isPhotoModalOpen && (
