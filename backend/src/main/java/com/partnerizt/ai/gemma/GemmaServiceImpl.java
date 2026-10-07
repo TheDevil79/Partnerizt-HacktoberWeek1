@@ -289,30 +289,46 @@ public class GemmaServiceImpl implements GemmaService {
             }
         }
 
-        // 2. Strip inline/multiline metadata sections like "User Question: ... * Role: ... * Constraints: ..."
-        if (text.toLowerCase().contains("user question:") || text.toLowerCase().contains("role:") || text.toLowerCase().contains("constraints:")) {
+        // 2. Strip inline/multiline metadata sections (User asks, Persona, Specialization, Tone, Constraint, Role, etc.)
+        String lowerText = text.toLowerCase();
+        if (lowerText.contains("user asks:") || lowerText.contains("user question:") || lowerText.contains("persona:") ||
+            lowerText.contains("specialization:") || lowerText.contains("role:") || lowerText.contains("constraint:") ||
+            lowerText.contains("constraints:") || lowerText.contains("tone:") || lowerText.contains("guidelines:")) {
+            
             String[] segments = text.split("(?=(\\s\\*\\s+|\\n\\*\\s*|\\n))");
             List<String> goodSegments = new ArrayList<>();
             for (String seg : segments) {
                 String s = seg.trim().replaceAll("^\\*+\\s*", "").trim();
                 String lower = s.toLowerCase();
-                if (lower.startsWith("user question:") ||
+                if (lower.startsWith("user asks:") ||
+                    lower.startsWith("user question:") ||
                     lower.startsWith("question:") ||
-                    lower.startsWith("user asks:") ||
                     lower.startsWith("prompt:") ||
-                    lower.startsWith("role:") ||
+                    lower.startsWith("persona:") ||
+                    lower.startsWith("specialization:") ||
+                    lower.startsWith("tone:") ||
+                    lower.startsWith("constraint:") ||
                     lower.startsWith("constraints:") ||
-                    lower.startsWith("respond in") ||
-                    lower.startsWith("do not") ||
-                    lower.startsWith("speak directly") ||
+                    lower.startsWith("role:") ||
+                    lower.startsWith("task:") ||
+                    lower.startsWith("instruction:") ||
+                    lower.startsWith("system instruction:") ||
                     lower.startsWith("guidelines:") ||
+                    lower.startsWith("guideline:") ||
                     lower.startsWith("checklist:") ||
                     lower.startsWith("rubric:") ||
                     lower.startsWith("criteria:") ||
+                    lower.startsWith("respond in") ||
+                    lower.startsWith("speak directly") ||
+                    lower.startsWith("output *only*") ||
+                    lower.startsWith("output only") ||
+                    lower.startsWith("do not") ||
                     lower.startsWith("first-person") ||
-                    lower.startsWith("persona:") ||
                     lower.startsWith("friendly")) {
                     continue;
+                }
+                if (lower.startsWith("\"") && lower.endsWith("\"") && goodSegments.size() > 0) {
+                    continue; // Skip secondary quoted echoes
                 }
                 goodSegments.add(s);
             }
@@ -322,7 +338,6 @@ public class GemmaServiceImpl implements GemmaService {
         }
 
         // 3. Cut off duplicate drafts separated by ` * "` or ` * '` or `\n* "`
-        // (e.g. "Sentence A. * \"Sentence A.")
         java.util.regex.Pattern dupDraftPattern = java.util.regex.Pattern.compile("(?i)(?:\\s\\*\\s+|\\n\\*\\s*)[\"']");
         java.util.regex.Matcher dupMatcher = dupDraftPattern.matcher(text);
         if (dupMatcher.find() && dupMatcher.start() > 30) {
@@ -339,6 +354,7 @@ public class GemmaServiceImpl implements GemmaService {
                 lower.startsWith("user question:") ||
                 lower.startsWith("user asks:") ||
                 lower.startsWith("prompt:") ||
+                lower.startsWith("persona:") ||
                 lower.startsWith("system instruction:") ||
                 lower.startsWith("explorer:")) {
                 continue;
@@ -349,7 +365,7 @@ public class GemmaServiceImpl implements GemmaService {
             text = String.join(" ", cleanLines).trim();
         }
 
-        // 5. Strip trailing self-evaluation / persona checklists (e.g., "* First-person? Yes", "* Friendly/Cheerful?", "* Checklist:")
+        // 5. Strip trailing self-evaluation / persona checklists
         String[] checklistIndicators = {
                 "* First-person", "* Friendly", "* Cheerful", "* Knowledgeable",
                 "* Safety", "* Scientific", "* Draft", "* Checklist", "* Criteria", "* Persona", "* Rubric", "* Option 2"

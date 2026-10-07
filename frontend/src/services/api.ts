@@ -635,32 +635,52 @@ class PartneriztApiClient {
         }
       }
 
-      // 2. If text contains inline bullet metadata like "User Question: ... * Role: ... * Constraints: ...", filter out metadata segments
-      if (t.toLowerCase().includes('user question:') || t.toLowerCase().includes('role:') || t.toLowerCase().includes('constraints:')) {
+      // 2. Strip inline/multiline metadata sections (User asks, Persona, Specialization, Tone, Constraint, Role, etc.)
+      const lowerText = t.toLowerCase();
+      if (
+        lowerText.includes('user asks:') ||
+        lowerText.includes('user question:') ||
+        lowerText.includes('persona:') ||
+        lowerText.includes('specialization:') ||
+        lowerText.includes('role:') ||
+        lowerText.includes('constraint:') ||
+        lowerText.includes('constraints:') ||
+        lowerText.includes('tone:') ||
+        lowerText.includes('guidelines:')
+      ) {
         const segments = t.split(/(?=\s\*\s+|\n\*\s*|\n)/);
         const goodSegments = segments.filter((seg) => {
           const s = seg.trim().replace(/^\*+\s*/, '').toLowerCase();
           return (
+            !s.startsWith('user asks:') &&
             !s.startsWith('user question:') &&
             !s.startsWith('question:') &&
-            !s.startsWith('user asks:') &&
             !s.startsWith('prompt:') &&
-            !s.startsWith('role:') &&
+            !s.startsWith('persona:') &&
+            !s.startsWith('specialization:') &&
+            !s.startsWith('tone:') &&
+            !s.startsWith('constraint:') &&
             !s.startsWith('constraints:') &&
-            !s.startsWith('respond in') &&
-            !s.startsWith('do not') &&
-            !s.startsWith('speak directly') &&
+            !s.startsWith('role:') &&
+            !s.startsWith('task:') &&
+            !s.startsWith('instruction:') &&
+            !s.startsWith('system instruction:') &&
             !s.startsWith('guidelines:') &&
+            !s.startsWith('guideline:') &&
             !s.startsWith('checklist:') &&
             !s.startsWith('rubric:') &&
             !s.startsWith('criteria:') &&
+            !s.startsWith('respond in') &&
+            !s.startsWith('speak directly') &&
+            !s.startsWith('output *only*') &&
+            !s.startsWith('output only') &&
+            !s.startsWith('do not') &&
             !s.startsWith('first-person') &&
-            !s.startsWith('persona:') &&
             !s.startsWith('friendly')
           );
         });
         if (goodSegments.length > 0) {
-          t = goodSegments.map(s => s.trim().replace(/^\*+\s*/, '')).join(' ').trim();
+          t = goodSegments.map((s) => s.trim().replace(/^\*+\s*/, '')).join(' ').trim();
         }
       }
 
@@ -679,8 +699,11 @@ class PartneriztApiClient {
           !lower.startsWith('user question:') &&
           !lower.startsWith('question:') &&
           !lower.startsWith('prompt:') &&
+          !lower.startsWith('persona:') &&
+          !lower.startsWith('specialization:') &&
+          !lower.startsWith('tone:') &&
+          !lower.startsWith('constraint:') &&
           !lower.startsWith('role:') &&
-          !lower.startsWith('constraints:') &&
           !lower.startsWith('task:') &&
           !lower.startsWith('system:') &&
           !lower.startsWith('system instruction:')
