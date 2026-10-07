@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Send, Sparkles, Compass, Globe, X, Volume2, Loader2 } from 'lucide-react';
 import { CharacterId, CharacterMessage } from '../../types';
 import { CharacterAvatar } from '../../assets/characterAvatars';
@@ -125,7 +126,7 @@ export const CharacterChatModal: React.FC<CharacterChatModalProps> = ({
   };
 
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
       <div className="bg-white rounded-4xl w-full max-w-lg h-[90vh] sm:h-[82vh] shadow-2xl border border-slate-100 flex flex-col overflow-hidden">
         {/* Chat Header */}
@@ -292,6 +293,7 @@ export const CharacterChatModal: React.FC<CharacterChatModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

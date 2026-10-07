@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -29,7 +30,7 @@ export const Modal: React.FC<ModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
       <div
         className={`bg-white rounded-4xl w-full ${maxWidth} p-5 sm:p-6 shadow-2xl border border-slate-100 relative my-auto max-h-[92vh] flex flex-col`}
@@ -50,6 +51,7 @@ export const Modal: React.FC<ModalProps> = ({
         {/* Content */}
         <div className="overflow-y-auto flex-1 pr-1">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

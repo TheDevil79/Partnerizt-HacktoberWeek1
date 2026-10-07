@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Sparkles, Coins, Clock, MapPin, Camera, MessageSquare } from 'lucide-react';
 import { Quest } from '../../types';
 import { CharacterAvatar } from '../../assets/characterAvatars';
@@ -23,7 +24,8 @@ export const QuestDetailsModal: React.FC<QuestDetailsModalProps> = ({
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+      {createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
         <div className="bg-white rounded-4xl w-full max-w-md p-5 sm:p-6 shadow-2xl border border-slate-100 relative max-h-[90vh] flex flex-col my-auto">
           {/* Header */}
           <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3 flex-shrink-0">
@@ -131,8 +133,9 @@ export const QuestDetailsModal: React.FC<QuestDetailsModalProps> = ({
               )}
             </div>
           </div>
-        </div>
-      </div>
+        </div>,
+        document.body
+      )}
 
       {/* Photo submission modal */}
       {isPhotoModalOpen && (

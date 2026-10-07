@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { Sparkles, Coins, CheckCircle, ArrowRight } from 'lucide-react';
 import { usePartnerizt } from '../../context/PartneriztContext';
 import { CharacterAvatar } from '../../assets/characterAvatars';
@@ -8,7 +9,7 @@ export const ConfettiCelebration: React.FC = () => {
 
   if (!celebration) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
       <div className="bg-white rounded-4xl max-w-sm w-full p-6 text-center border-4 border-emerald-400 shadow-2xl relative overflow-hidden transform scale-100 transition-transform">
         {/* Decorative Top Glow */}
@@ -71,6 +72,7 @@ export const ConfettiCelebration: React.FC = () => {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

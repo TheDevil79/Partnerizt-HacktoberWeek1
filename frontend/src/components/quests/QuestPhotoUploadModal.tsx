@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Camera, Upload, CheckCircle2, ArrowRight, Loader2, Globe, Bot, AlertTriangle, ExternalLink, RefreshCw, X, AlertCircle, Volume2 } from 'lucide-react';
 import { Quest, IdentificationResult } from '../../types';
 import { CharacterAvatar } from '../../assets/characterAvatars';
@@ -282,7 +283,7 @@ export const QuestPhotoUploadModal: React.FC<QuestPhotoUploadModalProps> = ({
   const isLowConfidence = result !== null && (result.confidence === undefined || result.confidence < 0.60);
 
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
       <div className="bg-white rounded-4xl w-full max-w-lg p-5 sm:p-6 shadow-2xl border border-slate-100 relative max-h-[92vh] flex flex-col my-auto">
         {/* Modal Header */}
@@ -613,6 +614,7 @@ export const QuestPhotoUploadModal: React.FC<QuestPhotoUploadModalProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
