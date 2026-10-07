@@ -621,21 +621,25 @@ class PartneriztApiClient {
     const sanitizeCompanionReply = (raw: string): string => {
       let t = raw.trim();
 
-      // 1. Look for explicit Option/Draft markers (e.g. "* *Option 1:*", "Option 1:", "**Draft 1:**", "Final Response:")
+      // 1. If text starts with multiple options (Option 1: ...), take Option 1
       const optionStartMatches = [...t.matchAll(/(?:^|\n|\s)\*?\s*\*?(?:Option\s*\d*|Draft\s*\d*|Version\s*\d*|Response|Answer|Final\s*Response)\s*\*?:\s*\*?/gi)];
       if (optionStartMatches.length > 0) {
         const firstMatch = optionStartMatches[0];
         if (firstMatch.index !== undefined) {
           t = t.substring(firstMatch.index + firstMatch[0].length).trim();
-          // If there is a subsequent option (Option 2, Draft 2, etc.) or Checklist, cut off before it
-          const nextOptMatch = t.match(/(?:\n|\s)\*?\s*\*?(?:Option\s*[2-9]|Draft\s*[2-9]|Version\s*[2-9]|Checklist|Rubric)\b/i);
-          if (nextOptMatch && nextOptMatch.index !== undefined && nextOptMatch.index > 20) {
-            t = t.substring(0, nextOptMatch.index).trim();
-          }
         }
       }
 
-      // 2. Strip inline/multiline metadata sections (User asks, Persona, Specialization, Tone, Constraint, Role, etc.)
+      // 2. Cut off at any secondary versions, self-critique, or deliberation
+      // e.g. `" Let's go with...`, `*Count:*`, `*Wait...`, `*Check constraints...`, `*Final Polish:*`
+      const cutOffMatch = t.match(
+        /(?:["']\s*(?:Let's|Wait|Check|Count|Option|Draft|Version|Here's|Maybe|How about)|\b(?:Let's go with|Let's try|Let's use|Let's refine|Let's make sure|\*Count:\*|\*Wait|\*Check constraints|\*Final Polish:|\*Draft\s*\d|\*Option\s*\d|Option\s*[2-9]:|Draft\s*[2-9]:)\b)/i
+      );
+      if (cutOffMatch && cutOffMatch.index !== undefined && cutOffMatch.index > 20) {
+        t = t.substring(0, cutOffMatch.index).trim();
+      }
+
+      // 3. Strip inline/multiline metadata sections (User asks, Persona, Specialization, Tone, Constraint, Role, etc.)
       const lowerText = t.toLowerCase();
       if (
         lowerText.includes('user asks:') ||
@@ -684,13 +688,13 @@ class PartneriztApiClient {
         }
       }
 
-      // 3. Cut off duplicate drafts separated by ` * "` or ` * '` or `\n* "`
+      // 4. Cut off duplicate drafts separated by ` * "` or ` * '` or `\n* "`
       const dupDraftIndex = t.search(/(?:\s\*\s+|\n\*\s*)["']/);
       if (dupDraftIndex > 30) {
         t = t.substring(0, dupDraftIndex).trim();
       }
 
-      // 4. If text has multiline metadata lines, strip them
+      // 5. If text has multiline metadata lines, strip them
       const lines = t.split('\n');
       const cleanLines = lines.filter((line) => {
         const lower = line.trim().toLowerCase();
@@ -711,13 +715,13 @@ class PartneriztApiClient {
       });
       t = cleanLines.join(' ').trim();
 
-      // 5. If there is a trailing checklist (e.g., "* First-person? Yes", "* Friendly/Cheerful? Yes"), cut it off
-      const checklistIndex = t.search(/\s\*\s+(First-person|Friendly|Cheerful|Knowledgeable|Safety|Checklist|Criteria|Persona|Rubric|Option\s*2)\b/i);
+      // 6. If there is a trailing checklist, cut it off
+      const checklistIndex = t.search(/\s\*\s+(First-person|Friendly|Cheerful|Knowledgeable|Safety|Checklist|Criteria|Persona|Rubric|Option\s*2|Count:)\b/i);
       if (checklistIndex > 30) {
         t = t.substring(0, checklistIndex).trim();
       }
 
-      // 6. Remove any leftover prefix like "Flora:" or "Flora (cheerful..."
+      // 7. Remove any leftover prefix like "Flora:" or "Flora (cheerful..."
       if (t.toLowerCase().startsWith(charName.toLowerCase() + ':')) {
         t = t.substring(charName.length + 1).trim();
       }
@@ -727,7 +731,7 @@ class PartneriztApiClient {
           t = t.substring(closeParen + 2).trim();
         } else {
           const singleClose = t.indexOf(')');
-          if (singleClose !== -1 && singleClose + 1 < t.length) {
+          if (singleClose !== -1 && singleClose + 1 < text.length) {
             t = t.substring(singleClose + 1).trim();
           }
         }
@@ -750,7 +754,7 @@ class PartneriztApiClient {
                 systemInstruction: {
                   parts: [
                     {
-                      text: `You are ${charName} for the Partnerizt outdoor learning app. ${persona} Speak directly in first person as ${charName} in 2-3 engaging, conversational sentences. Never output thinking, outlines, drafts, rubrics, or checklists. Output ONLY your spoken dialogue.`,
+                      text: `You are ${charName}. ${persona} Answer the explorer's question directly and conversationally in 2 friendly sentences.`,
                     },
                   ],
                 },
@@ -762,7 +766,7 @@ class PartneriztApiClient {
                 ],
                 generationConfig: {
                   temperature: 0.7,
-                  maxOutputTokens: 800,
+                  maxOutputTokens: 600,
                 },
               }),
             }
