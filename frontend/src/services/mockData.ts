@@ -322,6 +322,4 @@ export const MOCK_BADGES: Badge[] = [
   },
 ];
 
-export const MOCK_RECENT_DISCOVERY: Discovery | undefined = undefined;
-
 export const MOCK_DISCOVERY_GALLERY: Discovery[] = [];

@@ -250,15 +250,15 @@ export const QuestPhotoUploadModal: React.FC<QuestPhotoUploadModalProps> = ({
         previewImage,
         result
           ? {
-              title: result.title,
+              title: result.name,
               scientificName: result.scientificName,
               explanation: result.explanation,
               coolFact: result.coolFact,
-              sources: result.sources,
+              sources: result.knowledgeSources,
               category: result.domain || quest.category.toUpperCase(),
               characterId: quest.characterId,
-              xpEarned: result.xpEarned || quest.xpReward,
-              coinsEarned: result.coinsEarned || quest.coinReward,
+              xpEarned: result.xpValue || quest.xpReward,
+              coinsEarned: result.coinsValue || quest.coinReward,
             }
           : undefined
       );

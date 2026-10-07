@@ -11,13 +11,11 @@ import {
 } from '../types';
 import {
   MOCK_CHARACTERS,
-  MOCK_DISCOVERY_GALLERY,
   MOCK_QUESTS,
-  MOCK_RECENT_DISCOVERY,
   MOCK_USER_STATS,
 } from './mockData';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '/api/v1';
 const IDENTIFICATION_TIMEOUT_MS = 90000;
 
 // Domain-tailored AI chat responses for resilient offline / fallback mode
@@ -807,6 +805,9 @@ class PartneriztApiClient {
         safetyDisclaimer: remote.safetyDisclaimer,
         isIdentified,
         suggestedChallenge: remote.suggestedChallenge,
+        xpValue: remote.xpValue,
+        coinsValue: remote.coinsValue,
+        domain: remote.domain,
         knowledgeSources: sources.length > 0 ? sources : [
           {
             title: `Field Taxonomy Record — ${remote.domain || 'Partnerizt Science'}`,

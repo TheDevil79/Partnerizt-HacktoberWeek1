@@ -82,9 +82,9 @@ export const PartneriztProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const watchIdRef = useRef<number | null>(null);
   const lastCoordRef = useRef<Coordinates | null>(null);
-  const sessionTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const walkSimTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const backendSyncTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const sessionTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const walkSimTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const backendSyncTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const isExploring = activeSession !== null;
 

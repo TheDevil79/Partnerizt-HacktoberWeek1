@@ -23,6 +23,9 @@ export interface IdentificationResult {
   isIdentified?: boolean;
   suggestedChallenge?: string;
   knowledgeSources: WebKnowledge[];
+  xpValue?: number;
+  coinsValue?: number;
+  domain?: string;
 }
 
 export interface Discovery {
