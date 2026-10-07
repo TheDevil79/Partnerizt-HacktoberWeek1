@@ -622,6 +622,37 @@ class PartneriztApiClient {
       if (!raw || !raw.trim()) return '';
       let t = raw.trim();
 
+      // 0. If the model output is an internal planning scratchpad with multiple candidate quotes, extract the best dialogue quote
+      if (
+        t.includes('Character Persona:') ||
+        t.includes('Constraints:') ||
+        t.includes('Topic:') ||
+        t.includes('Locations:') ||
+        t.includes('Sentence 1:') ||
+        t.includes('Check constraints') ||
+        t.toLowerCase().includes("wait, let's") ||
+        t.toLowerCase().includes('actually,')
+      ) {
+        const candMatches = [...t.matchAll(/["“]([A-Z][^"”]{30,}?[.!?])["”]/g)];
+        const candidates: string[] = [];
+        for (const match of candMatches) {
+          const c = match[1].trim();
+          const lowerC = c.toLowerCase();
+          if (
+            !lowerC.includes('sentence') &&
+            !lowerC.includes('constraint') &&
+            !lowerC.includes('direct answer') &&
+            !lowerC.includes('checklist') &&
+            !lowerC.includes('persona:')
+          ) {
+            candidates.push(c);
+          }
+        }
+        if (candidates.length > 0) {
+          return candidates[candidates.length - 1];
+        }
+      }
+
       // 1. Strip markdown headers / draft markers like "**Draft 1:**", "Option 1:", etc.
       t = t.replace(/(?:^|\n)\s*(?:\*\*|\*|#+)?\s*(?:Draft|Option|Version|Candidate|Response|Answer|Final\s*Response|Thinking|Checklist|Self-Evaluation)\s*\d*\s*(?:\*\*|\*|#+)?\s*:?\s*/gi, ' ');
 
@@ -655,7 +686,7 @@ class PartneriztApiClient {
         }
       }
 
-      // 5. Strip metadata and checklist lines
+      // 5. Strip metadata, planning scratchpad, and checklist lines
       const lines = t.split(/\r?\n/);
       const cleanLines = lines.filter((line) => {
         const trimmed = line.trim().replace(/^\*+\s*/, '');
@@ -665,9 +696,17 @@ class PartneriztApiClient {
           return false;
         }
         return (
-          !lower.startsWith('user asks:') &&
-          !lower.startsWith('user question:') &&
+          !lower.startsWith('character persona:') &&
+          !lower.startsWith('constraints:') &&
+          !lower.startsWith('topic:') &&
+          !lower.startsWith('locations:') &&
+          !lower.startsWith('sentence 1:') &&
+          !lower.startsWith('sentence 2:') &&
+          !lower.startsWith('sentence 3:') &&
+          !lower.startsWith('check constraints') &&
           !lower.startsWith('question:') &&
+          !lower.startsWith('user question:') &&
+          !lower.startsWith('user asks:') &&
           !lower.startsWith('prompt:') &&
           !lower.startsWith('persona:') &&
           !lower.startsWith('specialization:') &&

@@ -274,6 +274,27 @@ public class GemmaServiceImpl implements GemmaService {
         if (rawText == null || rawText.isBlank()) return rawText;
         String text = rawText.trim();
 
+        // 0. If the model output is an internal planning scratchpad with multiple candidate quotes, extract the best dialogue quote
+        if (text.contains("Character Persona:") || text.contains("Constraints:") || text.contains("Topic:") ||
+            text.contains("Locations:") || text.contains("Sentence 1:") || text.contains("Check constraints") ||
+            text.toLowerCase().contains("wait, let's") || text.toLowerCase().contains("actually,")) {
+            java.util.regex.Pattern candPattern = java.util.regex.Pattern.compile("[\"“]([A-Z][^\"”]{30,}?[.!?])[\"”]");
+            java.util.regex.Matcher candMatcher = candPattern.matcher(text);
+            List<String> candidates = new ArrayList<>();
+            while (candMatcher.find()) {
+                String c = candMatcher.group(1).trim();
+                String lowerC = c.toLowerCase();
+                if (!lowerC.contains("sentence") && !lowerC.contains("constraint") &&
+                    !lowerC.contains("direct answer") && !lowerC.contains("checklist") &&
+                    !lowerC.contains("persona:")) {
+                    candidates.add(c);
+                }
+            }
+            if (!candidates.isEmpty()) {
+                return candidates.get(candidates.size() - 1);
+            }
+        }
+
         // 1. Strip markdown headers / draft markers like "**Draft 1:**", "Option 1:", etc.
         text = text.replaceAll("(?i)(?:^|\\n)\\s*(?:\\*\\*|\\*|#+)?\\s*(?:Draft|Option|Version|Candidate|Response|Answer|Final\\s*Response|Thinking|Checklist|Self-Evaluation)\\s*\\d*\\s*(?:\\*\\*|\\*|#+)?\\s*:?\\s*", " ");
 
@@ -307,7 +328,7 @@ public class GemmaServiceImpl implements GemmaService {
             }
         }
 
-        // 5. Strip metadata and checklist lines
+        // 5. Strip metadata, planning scratchpad, and checklist lines
         String[] lines = text.split("\\r?\\n");
         List<String> cleanLines = new ArrayList<>();
         for (String line : lines) {
@@ -317,7 +338,15 @@ public class GemmaServiceImpl implements GemmaService {
             if (lower.contains("? yes") || lower.contains("? no") || lower.contains(": yes") || lower.contains(": no")) {
                 continue;
             }
-            if (lower.startsWith("question:") ||
+            if (lower.startsWith("character persona:") ||
+                lower.startsWith("constraints:") ||
+                lower.startsWith("topic:") ||
+                lower.startsWith("locations:") ||
+                lower.startsWith("sentence 1:") ||
+                lower.startsWith("sentence 2:") ||
+                lower.startsWith("sentence 3:") ||
+                lower.startsWith("check constraints") ||
+                lower.startsWith("question:") ||
                 lower.startsWith("user question:") ||
                 lower.startsWith("user asks:") ||
                 lower.startsWith("prompt:") ||
