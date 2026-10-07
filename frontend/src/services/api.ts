@@ -619,19 +619,16 @@ class PartneriztApiClient {
     const models = ['gemma-4-26b-a4b-it', 'gemma-4-31b-it'];
 
     const sanitizeCompanionReply = (raw: string): string => {
+      if (!raw || !raw.trim()) return '';
       let t = raw.trim();
 
-      // 1. If text starts with multiple options (Option 1: ...), take Option 1
-      const optionStartMatches = [...t.matchAll(/(?:^|\n|\s)\*?\s*\*?(?:Option\s*\d*|Draft\s*\d*|Version\s*\d*|Response|Answer|Final\s*Response)\s*\*?:\s*\*?/gi)];
-      if (optionStartMatches.length > 0) {
-        const firstMatch = optionStartMatches[0];
-        if (firstMatch.index !== undefined) {
-          t = t.substring(firstMatch.index + firstMatch[0].length).trim();
-        }
-      }
+      // 1. Strip markdown headers / draft markers like "**Draft 1:**", "Option 1:", etc.
+      t = t.replace(/(?:^|\n)\s*(?:\*\*|\*|#+)?\s*(?:Draft|Option|Version|Candidate|Response|Answer|Final\s*Response|Thinking|Checklist|Self-Evaluation)\s*\d*\s*(?:\*\*|\*|#+)?\s*:?\s*/gi, ' ');
 
-      // 2. Cut off at any secondary versions, self-critique, or deliberation
-      // e.g. `" Let's go with...`, `*Count:*`, `*Wait...`, `*Check constraints...`, `*Final Polish:*`
+      // 2. Strip leading / inline checklist Q&A evaluations: "* Direct answer? Yes.", "* Conversational? Yes.", "Friendly? Yes."
+      t = t.replace(/(?:^|\s|\n)(?:\*|-)?\s*[a-zA-Z0-9\s\-]+(?:\?|:)\s*(?:Yes|No|Checked|Pass|Met|OK|Done|True|False)\.?(?=\s|$|\n|\*|-|")/gi, ' ');
+
+      // 3. Cut off at any secondary versions, deliberation, or self-critique
       const cutOffMatch = t.match(
         /(?:["']\s*(?:Let's|Wait|Check|Count|Option|Draft|Version|Here's|Maybe|How about)|\b(?:Let's go with|Let's try|Let's use|Let's refine|Let's make sure|\*Count:\*|\*Wait|\*Check constraints|\*Final Polish:|\*Draft\s*\d|\*Option\s*\d|Option\s*[2-9]:|Draft\s*[2-9]:)\b)/i
       );
@@ -639,65 +636,34 @@ class PartneriztApiClient {
         t = t.substring(0, cutOffMatch.index).trim();
       }
 
-      // 3. Strip inline/multiline metadata sections (User asks, Persona, Specialization, Tone, Constraint, Role, etc.)
-      const lowerText = t.toLowerCase();
-      if (
-        lowerText.includes('user asks:') ||
-        lowerText.includes('user question:') ||
-        lowerText.includes('persona:') ||
-        lowerText.includes('specialization:') ||
-        lowerText.includes('role:') ||
-        lowerText.includes('constraint:') ||
-        lowerText.includes('constraints:') ||
-        lowerText.includes('tone:') ||
-        lowerText.includes('guidelines:')
-      ) {
-        const segments = t.split(/(?=\s\*\s+|\n\*\s*|\n)/);
-        const goodSegments = segments.filter((seg) => {
-          const s = seg.trim().replace(/^\*+\s*/, '').toLowerCase();
-          return (
-            !s.startsWith('user asks:') &&
-            !s.startsWith('user question:') &&
-            !s.startsWith('question:') &&
-            !s.startsWith('prompt:') &&
-            !s.startsWith('persona:') &&
-            !s.startsWith('specialization:') &&
-            !s.startsWith('tone:') &&
-            !s.startsWith('constraint:') &&
-            !s.startsWith('constraints:') &&
-            !s.startsWith('role:') &&
-            !s.startsWith('task:') &&
-            !s.startsWith('instruction:') &&
-            !s.startsWith('system instruction:') &&
-            !s.startsWith('guidelines:') &&
-            !s.startsWith('guideline:') &&
-            !s.startsWith('checklist:') &&
-            !s.startsWith('rubric:') &&
-            !s.startsWith('criteria:') &&
-            !s.startsWith('respond in') &&
-            !s.startsWith('speak directly') &&
-            !s.startsWith('output *only*') &&
-            !s.startsWith('output only') &&
-            !s.startsWith('do not') &&
-            !s.startsWith('first-person') &&
-            !s.startsWith('friendly')
-          );
-        });
-        if (goodSegments.length > 0) {
-          t = goodSegments.map((s) => s.trim().replace(/^\*+\s*/, '')).join(' ').trim();
+      // 4. Handle quoted string followed by unquoted duplicate (or vice versa)
+      // e.g. "You'll often find wild berries..." You'll often find wild berries...
+      const quoteMatch = t.match(/^["“]([\s\S]+?)["”](?:\s*([\s\S]*))?$/);
+      if (quoteMatch) {
+        const insideQuotes = quoteMatch[1].trim();
+        const afterQuotes = (quoteMatch[2] || '').trim();
+        if (
+          !afterQuotes ||
+          insideQuotes.startsWith(afterQuotes.substring(0, Math.min(25, afterQuotes.length))) ||
+          afterQuotes.startsWith(insideQuotes.substring(0, Math.min(25, insideQuotes.length)))
+        ) {
+          t = insideQuotes;
+        } else if (afterQuotes.length > insideQuotes.length) {
+          t = afterQuotes;
+        } else {
+          t = insideQuotes;
         }
       }
 
-      // 4. Cut off duplicate drafts separated by ` * "` or ` * '` or `\n* "`
-      const dupDraftIndex = t.search(/(?:\s\*\s+|\n\*\s*)["']/);
-      if (dupDraftIndex > 30) {
-        t = t.substring(0, dupDraftIndex).trim();
-      }
-
-      // 5. If text has multiline metadata lines, strip them
-      const lines = t.split('\n');
+      // 5. Strip metadata and checklist lines
+      const lines = t.split(/\r?\n/);
       const cleanLines = lines.filter((line) => {
-        const lower = line.trim().toLowerCase();
+        const trimmed = line.trim().replace(/^\*+\s*/, '');
+        const lower = trimmed.toLowerCase();
+        if (!lower) return false;
+        if (lower.includes('? yes') || lower.includes('? no') || lower.includes(': yes') || lower.includes(': no')) {
+          return false;
+        }
         return (
           !lower.startsWith('user asks:') &&
           !lower.startsWith('user question:') &&
@@ -709,36 +675,31 @@ class PartneriztApiClient {
           !lower.startsWith('constraint:') &&
           !lower.startsWith('role:') &&
           !lower.startsWith('task:') &&
-          !lower.startsWith('system:') &&
+          !lower.startsWith('guideline:') &&
+          !lower.startsWith('checklist:') &&
+          !lower.startsWith('rubric:') &&
+          !lower.startsWith('criteria:') &&
+          !lower.startsWith('direct answer') &&
+          !lower.startsWith('conversational') &&
+          !lower.startsWith('persona-consistent') &&
           !lower.startsWith('system instruction:')
         );
       });
-      t = cleanLines.join(' ').trim();
-
-      // 6. If there is a trailing checklist, cut it off
-      const checklistIndex = t.search(/\s\*\s+(First-person|Friendly|Cheerful|Knowledgeable|Safety|Checklist|Criteria|Persona|Rubric|Option\s*2|Count:)\b/i);
-      if (checklistIndex > 30) {
-        t = t.substring(0, checklistIndex).trim();
+      if (cleanLines.length > 0) {
+        t = cleanLines.join(' ').trim();
       }
 
-      // 7. Remove any leftover prefix like "Flora:" or "Flora (cheerful..."
-      if (t.toLowerCase().startsWith(charName.toLowerCase() + ':')) {
-        t = t.substring(charName.length + 1).trim();
-      }
-      if (t.startsWith(`${charName} (`)) {
-        const closeParen = t.indexOf(').');
-        if (closeParen !== -1 && closeParen + 2 < t.length) {
-          t = t.substring(closeParen + 2).trim();
-        } else {
-          const singleClose = t.indexOf(')');
-          if (singleClose !== -1 && singleClose + 1 < text.length) {
-            t = t.substring(singleClose + 1).trim();
-          }
-        }
+      // 6. Strip companion name prefix if present ("Birdo: ...")
+      if (charName) {
+        const namePrefix = new RegExp(`^${charName}\\s*[:\\-]\\s*`, 'i');
+        t = t.replace(namePrefix, '');
+        t = t.replace(new RegExp(`^${charName}\\s*\\([^)]*\\)\\s*[:\\.]?\\s*`, 'i'), '');
       }
 
+      // 7. Strip surrounding quotes & extra asterisks/whitespace
+      t = t.replace(/^["'“”]+|["'“”]+$/g, '').trim();
       t = t.replace(/^\*+|\*+$/g, '').trim();
-      t = t.replace(/^["']|["']$/g, '').trim();
+      t = t.replace(/\s+/g, ' ').trim();
       return t;
     };
 
@@ -754,7 +715,7 @@ class PartneriztApiClient {
                 systemInstruction: {
                   parts: [
                     {
-                      text: `You are ${charName}. ${persona} Answer the explorer's question directly and conversationally in 2 friendly sentences.`,
+                      text: `You are ${charName}. ${persona} Answer the explorer's question directly in character in 1 to 2 friendly, conversational sentences. IMPORTANT: Output ONLY your direct spoken words. Do NOT include any checklists, self-critique, validation questions, multiple options, bullet points, meta thinking, or quotation marks.`,
                     },
                   ],
                 },

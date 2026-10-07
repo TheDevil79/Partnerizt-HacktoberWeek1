@@ -228,7 +228,8 @@ public class GemmaServiceImpl implements GemmaService {
         ));
 
         String systemInstructionText = String.format(
-                "You are %s. %s Answer the explorer's question directly and conversationally in 2 friendly sentences.",
+                "You are %s. %s Answer the explorer's question directly in character in 1 to 2 friendly, conversational sentences. " +
+                "IMPORTANT: Output ONLY your direct spoken words. Do NOT include any checklists, self-critique, validation questions, multiple options, bullet points, meta thinking, or quotation marks.",
                 compName, systemPrompt
         );
 
@@ -273,15 +274,13 @@ public class GemmaServiceImpl implements GemmaService {
         if (rawText == null || rawText.isBlank()) return rawText;
         String text = rawText.trim();
 
-        // 1. If text starts with multiple options (Option 1: ...), take Option 1
-        java.util.regex.Pattern optionStartPattern = java.util.regex.Pattern.compile("(?i)(?:^|\\n|\\s)\\*?\\s*\\*?(?:Option\\s*\\d*|Draft\\s*\\d*|Version\\s*\\d*|Response|Answer|Final\\s*Response)\\s*\\*?:\\s*\\*?");
-        java.util.regex.Matcher optStartMatcher = optionStartPattern.matcher(text);
-        if (optStartMatcher.find()) {
-            text = text.substring(optStartMatcher.end()).trim();
-        }
+        // 1. Strip markdown headers / draft markers like "**Draft 1:**", "Option 1:", etc.
+        text = text.replaceAll("(?i)(?:^|\\n)\\s*(?:\\*\\*|\\*|#+)?\\s*(?:Draft|Option|Version|Candidate|Response|Answer|Final\\s*Response|Thinking|Checklist|Self-Evaluation)\\s*\\d*\\s*(?:\\*\\*|\\*|#+)?\\s*:?\\s*", " ");
 
-        // 2. Cut off at any secondary versions, self-critique, or deliberation
-        // e.g. `" Let's go with...`, `*Count:*`, `*Wait...`, `*Check constraints...`, `*Final Polish:*`
+        // 2. Strip leading / inline checklist Q&A evaluations: "* Direct answer? Yes.", "* Conversational? Yes.", "Friendly? Yes."
+        text = text.replaceAll("(?i)(?:^|\\s|\\n)(?:\\*|-)?\\s*[a-zA-Z0-9\\s\\-]+(?:\\?|:)\\s*(?:Yes|No|Checked|Pass|Met|OK|Done|True|False)\\.?(?=\\s|$|\\n|\\*|-|\")", " ");
+
+        // 3. Cut off at any secondary versions, deliberation, or self-critique
         java.util.regex.Pattern cutOffPattern = java.util.regex.Pattern.compile(
                 "(?i)([\"']\\s*(Let's|Wait|Check|Count|Option|Draft|Version|Here's|Maybe|How about)|\\b(Let's go with|Let's try|Let's use|Let's refine|Let's make sure|\\*Count:\\*|\\*Wait|\\*Check constraints|\\*Final Polish:|\\*Draft\\s*\\d|\\*Option\\s*\\d|Option\\s*[2-9]:|Draft\\s*[2-9]:)\\b)"
         );
@@ -290,74 +289,52 @@ public class GemmaServiceImpl implements GemmaService {
             text = text.substring(0, cutMatcher.start()).trim();
         }
 
-        // 3. Strip inline/multiline metadata sections (User asks, Persona, Specialization, Tone, Constraint, Role, etc.)
-        String lowerText = text.toLowerCase();
-        if (lowerText.contains("user asks:") || lowerText.contains("user question:") || lowerText.contains("persona:") ||
-            lowerText.contains("specialization:") || lowerText.contains("role:") || lowerText.contains("constraint:") ||
-            lowerText.contains("constraints:") || lowerText.contains("tone:") || lowerText.contains("guidelines:")) {
-            
-            String[] segments = text.split("(?=(\\s\\*\\s+|\\n\\*\\s*|\\n))");
-            List<String> goodSegments = new ArrayList<>();
-            for (String seg : segments) {
-                String s = seg.trim().replaceAll("^\\*+\\s*", "").trim();
-                String lower = s.toLowerCase();
-                if (lower.startsWith("user asks:") ||
-                    lower.startsWith("user question:") ||
-                    lower.startsWith("question:") ||
-                    lower.startsWith("prompt:") ||
-                    lower.startsWith("persona:") ||
-                    lower.startsWith("specialization:") ||
-                    lower.startsWith("tone:") ||
-                    lower.startsWith("constraint:") ||
-                    lower.startsWith("constraints:") ||
-                    lower.startsWith("role:") ||
-                    lower.startsWith("task:") ||
-                    lower.startsWith("instruction:") ||
-                    lower.startsWith("system instruction:") ||
-                    lower.startsWith("guidelines:") ||
-                    lower.startsWith("guideline:") ||
-                    lower.startsWith("checklist:") ||
-                    lower.startsWith("rubric:") ||
-                    lower.startsWith("criteria:") ||
-                    lower.startsWith("respond in") ||
-                    lower.startsWith("speak directly") ||
-                    lower.startsWith("output *only*") ||
-                    lower.startsWith("output only") ||
-                    lower.startsWith("do not") ||
-                    lower.startsWith("first-person") ||
-                    lower.startsWith("friendly")) {
-                    continue;
-                }
-                if (lower.startsWith("\"") && lower.endsWith("\"") && goodSegments.size() > 0) {
-                    continue; // Skip secondary quoted echoes
-                }
-                goodSegments.add(s);
-            }
-            if (!goodSegments.isEmpty()) {
-                text = String.join(" ", goodSegments).trim();
+        // 4. Handle quoted string followed by unquoted duplicate (or vice versa)
+        // e.g. "You'll often find wild berries..." You'll often find wild berries...
+        java.util.regex.Pattern quotePattern = java.util.regex.Pattern.compile("^[\"“]([\\s\\S]+?)[\"”](?:\\s*([\\s\\S]*))?$");
+        java.util.regex.Matcher quoteMatcher = quotePattern.matcher(text.trim());
+        if (quoteMatcher.matches()) {
+            String insideQuotes = quoteMatcher.group(1).trim();
+            String afterQuotes = (quoteMatcher.group(2) != null) ? quoteMatcher.group(2).trim() : "";
+            if (afterQuotes.isBlank() ||
+                insideQuotes.startsWith(afterQuotes.substring(0, Math.min(25, afterQuotes.length()))) ||
+                afterQuotes.startsWith(insideQuotes.substring(0, Math.min(25, insideQuotes.length())))) {
+                text = insideQuotes;
+            } else if (afterQuotes.length() > insideQuotes.length()) {
+                text = afterQuotes;
+            } else {
+                text = insideQuotes;
             }
         }
 
-        // 4. Cut off duplicate drafts separated by ` * "` or ` * '` or `\n* "`
-        java.util.regex.Pattern dupDraftPattern = java.util.regex.Pattern.compile("(?i)(?:\\s\\*\\s+|\\n\\*\\s*)[\"']");
-        java.util.regex.Matcher dupMatcher = dupDraftPattern.matcher(text);
-        if (dupMatcher.find() && dupMatcher.start() > 30) {
-            text = text.substring(0, dupMatcher.start()).trim();
-        }
-
-        // 5. Strip leading question echoes if any
-        String[] lines = text.split("\r?\n");
+        // 5. Strip metadata and checklist lines
+        String[] lines = text.split("\\r?\\n");
         List<String> cleanLines = new ArrayList<>();
         for (String line : lines) {
-            String trimmedLine = line.trim();
+            String trimmedLine = line.trim().replaceAll("^\\*+\\s*", "");
             String lower = trimmedLine.toLowerCase();
+            if (lower.isBlank()) continue;
+            if (lower.contains("? yes") || lower.contains("? no") || lower.contains(": yes") || lower.contains(": no")) {
+                continue;
+            }
             if (lower.startsWith("question:") ||
                 lower.startsWith("user question:") ||
                 lower.startsWith("user asks:") ||
                 lower.startsWith("prompt:") ||
                 lower.startsWith("persona:") ||
-                lower.startsWith("system instruction:") ||
-                lower.startsWith("explorer:")) {
+                lower.startsWith("specialization:") ||
+                lower.startsWith("tone:") ||
+                lower.startsWith("constraint:") ||
+                lower.startsWith("role:") ||
+                lower.startsWith("task:") ||
+                lower.startsWith("guideline:") ||
+                lower.startsWith("checklist:") ||
+                lower.startsWith("rubric:") ||
+                lower.startsWith("criteria:") ||
+                lower.startsWith("direct answer") ||
+                lower.startsWith("conversational") ||
+                lower.startsWith("persona-consistent") ||
+                lower.startsWith("system instruction:")) {
                 continue;
             }
             cleanLines.add(trimmedLine);
@@ -366,19 +343,7 @@ public class GemmaServiceImpl implements GemmaService {
             text = String.join(" ", cleanLines).trim();
         }
 
-        // 6. Strip trailing self-evaluation / persona checklists
-        String[] checklistIndicators = {
-                "* First-person", "* Friendly", "* Cheerful", "* Knowledgeable",
-                "* Safety", "* Scientific", "* Draft", "* Checklist", "* Criteria", "* Persona", "* Rubric", "* Option 2", "* Count:"
-        };
-        for (String indicator : checklistIndicators) {
-            int idx = text.indexOf(indicator);
-            if (idx > 30) {
-                text = text.substring(0, idx).trim();
-            }
-        }
-
-        // 7. Remove any meta intro like "Birdo:" or "Birdo (cheerful..."
+        // 6. Strip companion name prefix if present ("Birdo: ...")
         if (companionName != null && !companionName.isBlank()) {
             String prefix = companionName.trim() + ":";
             if (text.toLowerCase().startsWith(prefix.toLowerCase())) {
@@ -397,8 +362,10 @@ public class GemmaServiceImpl implements GemmaService {
             }
         }
 
+        // 7. Strip surrounding quotes & extra asterisks/whitespace
+        text = text.replaceAll("^[\\\"'“”]+|[\\\"'“”]+$", "").trim();
         text = text.replaceAll("^\\*+|\\*+$", "").trim();
-        text = text.replaceAll("^[\"']|[\"']$", "").trim();
+        text = text.replaceAll("\\s+", " ").trim();
         return text;
     }
 
