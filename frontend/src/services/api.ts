@@ -533,49 +533,11 @@ class PartneriztApiClient {
   }
 
   public async getCharacters(): Promise<Character[]> {
-    const remote = await this.fetchApi<any[]>('/companions');
-    if (remote && remote.length > 0) {
-      return remote.map((c) => {
-        const mockMatch = MOCK_CHARACTERS.find((m) => m.id === c.id);
-        return {
-          id: c.id as CharacterId,
-          name: c.name || mockMatch?.name || 'Companion',
-          title: c.title || mockMatch?.title || 'Field Expert',
-          domain: c.domain || mockMatch?.domain || 'Nature',
-          personality: c.personality || mockMatch?.personality || 'Helpful and friendly',
-          avatarUrl: mockMatch?.avatarUrl || '',
-          badgeTheme: c.badgeTheme || mockMatch?.badgeTheme || 'amber',
-          specialty: c.specialty || mockMatch?.specialty || 'General',
-          description: c.description || mockMatch?.description || '',
-          unlockedAtLevel: c.unlockedAtLevel || mockMatch?.unlockedAtLevel || 1,
-          sampleOutdoorActivities: c.sampleOutdoorActivities || mockMatch?.sampleOutdoorActivities || [],
-          promptStarters: c.promptStarters || mockMatch?.promptStarters || [],
-        };
-      });
-    }
     await this.delay(40);
     return [...MOCK_CHARACTERS];
   }
 
   public async getCharacterById(id: CharacterId): Promise<Character | undefined> {
-    const remote = await this.fetchApi<any>(`/companions/${id}`);
-    if (remote) {
-      const mockMatch = MOCK_CHARACTERS.find((m) => m.id === id);
-      return {
-        id: remote.id as CharacterId,
-        name: remote.name || mockMatch?.name || 'Companion',
-        title: remote.title || mockMatch?.title || 'Field Expert',
-        domain: remote.domain || mockMatch?.domain || 'Nature',
-        personality: remote.personality || mockMatch?.personality || 'Helpful and friendly',
-        avatarUrl: mockMatch?.avatarUrl || '',
-        badgeTheme: remote.badgeTheme || mockMatch?.badgeTheme || 'amber',
-        specialty: remote.specialty || mockMatch?.specialty || 'General',
-        description: remote.description || mockMatch?.description || '',
-        unlockedAtLevel: remote.unlockedAtLevel || mockMatch?.unlockedAtLevel || 1,
-        sampleOutdoorActivities: remote.sampleOutdoorActivities || mockMatch?.sampleOutdoorActivities || [],
-        promptStarters: remote.promptStarters || mockMatch?.promptStarters || [],
-      };
-    }
     await this.delay(30);
     return MOCK_CHARACTERS.find((c) => c.id === id);
   }
