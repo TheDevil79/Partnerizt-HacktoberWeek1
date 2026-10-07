@@ -132,24 +132,43 @@ export const PartneriztProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // Start Exploration Session with Browser Geolocation API
   const startExploration = async () => {
     soundService.playTap();
-    
+
     // Find active quest to link with this session
     const activeQuest = quests.find(q => q.status === 'in_progress');
-    
-    // 1. Initialize session with backend
-    let initialSession: ExplorationSession = createInitialSession();
-    try {
-      const remoteSession = await api.startExplorationSession(activeQuest ? activeQuest.id : undefined);
-      if (remoteSession) {
-        initialSession = remoteSession;
-      }
-    } catch (e) {
-      console.warn('[Partnerizt Exploration] Backend start session fallback:', e);
-    }
 
-    setActiveSession(initialSession);
+    // Create local session immediately so the UI responds instantly
+    const localSession = createInitialSession();
+
+    setActiveSession(localSession);
     lastCoordRef.current = null;
 
+    // Start backend session in the background.
+    // Don't block the UI while Render wakes up / responds.
+    void (async () => {
+      try {
+        const remoteSession = await api.startExplorationSession(
+          activeQuest ? activeQuest.id : undefined
+        );
+
+        if (remoteSession) {
+          setActiveSession(prev =>
+            prev
+              ? {
+                  ...prev,
+                  id: remoteSession.id,
+                }
+              : prev
+          );
+        }
+      } catch (e) {
+        console.warn(
+          '[Partnerizt Exploration] Backend start session failed; continuing locally:',
+          e
+        );
+      }
+    })();
+
+    // Initialize geolocation without blocking the exploration UI
     if (!navigator.geolocation) {
       setLocationPermissionStatus('unavailable');
       console.warn('Geolocation is not supported by this browser.');
@@ -160,54 +179,69 @@ export const PartneriztProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           setLocationPermissionStatus('granted');
+
           const coord: Coordinates = {
             latitude: pos.coords.latitude,
             longitude: pos.coords.longitude,
             accuracy: pos.coords.accuracy,
             timestamp: pos.timestamp,
           };
+
           setGpsCoordinates(coord);
           setGpsAccuracy(pos.coords.accuracy);
           lastCoordRef.current = coord;
         },
         (err) => {
-          if (err.code === 1) { // PERMISSION_DENIED
+          if (err.code === 1) {
             setLocationPermissionStatus('denied');
           }
+
           console.warn('Geolocation initial error:', err.message);
         },
-        { enableHighAccuracy: true, timeout: 10000 }
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+        }
       );
 
       watchIdRef.current = navigator.geolocation.watchPosition(
         (pos) => {
           setLocationPermissionStatus('granted');
+
           const newCoord: Coordinates = {
             latitude: pos.coords.latitude,
             longitude: pos.coords.longitude,
             accuracy: pos.coords.accuracy,
             timestamp: pos.timestamp,
           };
+
           setGpsCoordinates(newCoord);
           setGpsAccuracy(pos.coords.accuracy);
 
-          // Reject highly inaccurate GPS fixes (> 100m) to prevent large erratic jumps
+          // Reject highly inaccurate GPS fixes (> 100m)
           if (pos.coords.accuracy && pos.coords.accuracy > 100) {
             return;
           }
 
           if (lastCoordRef.current) {
-            const deltaKm = calculateHaversineDistanceKm(lastCoordRef.current, newCoord);
+            const deltaKm = calculateHaversineDistanceKm(
+              lastCoordRef.current,
+              newCoord
+            );
+
             // Only add if moving above noise threshold (> 5 meters)
             if (deltaKm > 0.005) {
               setActiveSession((prev) =>
                 prev
                   ? {
                       ...prev,
-                      distanceKm: +(prev.distanceKm + deltaKm).toFixed(3),
+                      distanceKm: +(
+                        prev.distanceKm + deltaKm
+                      ).toFixed(3),
                     }
                   : null
               );
+
               lastCoordRef.current = newCoord;
             }
           } else {
@@ -218,9 +252,14 @@ export const PartneriztProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (err.code === 1) {
             setLocationPermissionStatus('denied');
           }
+
           console.warn('Geolocation watch error:', err.message);
         },
-        { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 }
+        {
+          enableHighAccuracy: true,
+          maximumAge: 3000,
+          timeout: 10000,
+        }
       );
     } catch (e) {
       console.warn('Geolocation initialization error:', e);
